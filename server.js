@@ -8,10 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: [
-      "https://your-vercel-app.vercel.app", // Replace with your actual Vercel domain
-      "http://localhost:3000",
-    ],
+    origin: ["https://meet-topaz-beta.vercel.app", "http://localhost:3000"],
     methods: ["GET", "POST"],
     credentials: true,
   },
