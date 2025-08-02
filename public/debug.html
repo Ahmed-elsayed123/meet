@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Debug - Socket.IO Configuration</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      .info {
+        background: #e3f2fd;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 10px 0;
+      }
+      .error {
+        background: #ffebee;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 10px 0;
+      }
+      .success {
+        background: #e8f5e8;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 10px 0;
+      }
+      pre {
+        background: #f5f5f5;
+        padding: 10px;
+        border-radius: 3px;
+        overflow-x: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Socket.IO Configuration Debug</h1>
+
+    <div class="info">
+      <h3>Current Environment</h3>
+      <p><strong>Hostname:</strong> <span id="hostname"></span></p>
+      <p><strong>Environment:</strong> <span id="environment"></span></p>
+    </div>
+
+    <div class="info">
+      <h3>Configuration</h3>
+      <p><strong>SOCKET_URL:</strong> <span id="socketUrl"></span></p>
+      <p><strong>Config Object:</strong></p>
+      <pre id="configObject"></pre>
+    </div>
+
+    <div class="info">
+      <h3>Connection Test</h3>
+      <button onclick="testConnection()">Test Socket.IO Connection</button>
+      <div id="connectionResult"></div>
+    </div>
+
+    <script src="/config.js"></script>
+    <script>
+      // Display current environment info
+      document.getElementById("hostname").textContent =
+        window.location.hostname;
+      document.getElementById("environment").textContent =
+        window.location.hostname === "localhost" ? "development" : "production";
+      document.getElementById("socketUrl").textContent =
+        window.SOCKET_URL || "NOT SET";
+
+      // Display config object
+      const config = {
+        development: { socketUrl: "http://localhost:3000" },
+        production: { socketUrl: "https://meet-5tup.onrender.com" },
+      };
+      document.getElementById("configObject").textContent = JSON.stringify(
+        config,
+        null,
+        2
+      );
+
+      // Test Socket.IO connection
+      function testConnection() {
+        const resultDiv = document.getElementById("connectionResult");
+        resultDiv.innerHTML = "<p>Testing connection...</p>";
+
+        try {
+          // Create a test socket connection
+          const testSocket = io(window.SOCKET_URL, {
+            transports: ["websocket", "polling"],
+            timeout: 5000,
+          });
+
+          testSocket.on("connect", () => {
+            resultDiv.innerHTML =
+              '<div class="success"><p>✅ Connection successful!</p><p>Connected to: ' +
+              window.SOCKET_URL +
+              "</p></div>";
+            testSocket.disconnect();
+          });
+
+          testSocket.on("connect_error", (error) => {
+            resultDiv.innerHTML =
+              '<div class="error"><p>❌ Connection failed!</p><p>Error: ' +
+              error.message +
+              "</p><p>Trying to connect to: " +
+              window.SOCKET_URL +
+              "</p></div>";
+          });
+
+          testSocket.on("error", (error) => {
+            resultDiv.innerHTML =
+              '<div class="error"><p>❌ Socket error!</p><p>Error: ' +
+              error +
+              "</p></div>";
+          });
+
+          // Timeout after 10 seconds
+          setTimeout(() => {
+            if (testSocket.connected === false) {
+              resultDiv.innerHTML =
+                '<div class="error"><p>❌ Connection timeout!</p><p>No response from: ' +
+                window.SOCKET_URL +
+                "</p></div>";
+              testSocket.disconnect();
+            }
+          }, 10000);
+        } catch (error) {
+          resultDiv.innerHTML =
+            '<div class="error"><p>❌ JavaScript error!</p><p>Error: ' +
+            error.message +
+            "</p></div>";
+        }
+      }
+    </script>
+    <script src="/socket.io/socket.io.js"></script>
+  </body>
+</html>

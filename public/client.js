@@ -1,5 +1,26 @@
 class VideoCallApp {
   constructor() {
+    // Debug logging
+    console.log("=== VideoCallApp Constructor ===");
+    console.log("window.SOCKET_URL:", window.SOCKET_URL);
+    console.log("window.location.hostname:", window.location.hostname);
+    console.log(
+      "Environment:",
+      window.location.hostname === "localhost" ? "development" : "production"
+    );
+
+    if (!window.SOCKET_URL) {
+      console.error(
+        "❌ SOCKET_URL is not defined! Check if config.js is loaded properly."
+      );
+      alert(
+        "Configuration error: SOCKET_URL is not defined. Please check the console for details."
+      );
+      return;
+    }
+
+    console.log("🔌 Attempting to connect to:", window.SOCKET_URL);
+
     this.socket = io(window.SOCKET_URL, {
       transports: ["websocket", "polling"],
       upgrade: true,
