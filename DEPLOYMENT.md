@@ -45,6 +45,21 @@ vercel login
 vercel
 ```
 
+**⚠️ Important: Socket.IO on Vercel**
+
+The app has been configured to work with Vercel's serverless environment. Key changes made:
+
+- Added Socket.IO serverless function in `api/socket.js`
+- Updated client configuration for better WebSocket handling
+- Enhanced server configuration with proper timeouts and transport options
+- Updated `vercel.json` with Socket.IO routing
+
+If you experience connection issues:
+
+1. Ensure the `api/socket.js` file is deployed
+2. Check that WebSocket connections are allowed
+3. Consider using Railway or Heroku for better Socket.IO support
+
 ### 3. Railway (Simple and reliable)
 
 **Steps:**
@@ -144,6 +159,16 @@ After deployment:
 - **CORS errors**: Check if your platform requires specific CORS configuration
 - **WebRTC not working**: Ensure HTTPS is enabled
 - **Socket.IO connection issues**: Some platforms require specific Socket.IO configuration
+
+**Socket.IO Connection Issues:**
+
+If you see WebSocket connection errors:
+
+1. Check browser console for specific error messages
+2. Ensure your deployment platform supports WebSockets
+3. Try refreshing the page
+4. Check if the Socket.IO server is running properly
+5. For Vercel: Ensure the `api/socket.js` function is deployed
 
 **Logs:**
 

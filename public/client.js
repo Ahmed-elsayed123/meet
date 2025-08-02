@@ -1,6 +1,12 @@
 class VideoCallApp {
   constructor() {
-    this.socket = io();
+    this.socket = io(window.SOCKET_URL, {
+      transports: ["websocket", "polling"],
+      upgrade: true,
+      rememberUpgrade: true,
+      timeout: 20000,
+      forceNew: true,
+    });
     this.localStream = null;
     this.screenStream = null;
     this.peerConnections = {};
