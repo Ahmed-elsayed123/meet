@@ -1,0 +1,18 @@
+{
+  "name": "video-call-app",
+  "description": "A simple video call application using WebRTC and Socket.IO",
+  "repository": "https://github.com/yourusername/video-call-app",
+  "logo": "https://node-js-sample.herokuapp.com/node.png",
+  "keywords": ["video-call", "webrtc", "socket.io", "node", "express"],
+  "env": {
+    "NODE_ENV": {
+      "description": "Environment setting for the application",
+      "value": "production"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ]
+} 

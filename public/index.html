@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Video Call App</title>
+    <link rel="stylesheet" href="style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+  </head>
+  <body>
+    <div class="app-container">
+      <!-- Header -->
+      <header class="app-header">
+        <div class="header-left">
+          <h1 class="app-title">Video Call</h1>
+        </div>
+        <div class="header-center">
+          <div class="connection-status" id="connectionStatus">
+            <span class="status-dot"></span>
+            <span class="status-text">Disconnected</span>
+          </div>
+        </div>
+        <div class="header-right">
+          <div class="room-info">
+            <span class="room-label">Room:</span>
+            <span class="room-name" id="currentRoom">-</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <div class="main-content">
+        <!-- Join Section -->
+        <div class="join-section" id="joinSection">
+          <div class="join-container">
+            <div class="join-header">
+              <h2>Join Meeting</h2>
+              <p>Enter your details to join the video call</p>
+            </div>
+            <div class="join-form">
+              <div class="form-group">
+                <label for="userId">Your Name</label>
+                <input
+                  type="text"
+                  id="userId"
+                  placeholder="Enter your name"
+                  maxlength="20"
+                />
+              </div>
+              <div class="form-group">
+                <label for="roomId">Meeting ID</label>
+                <input
+                  type="text"
+                  id="roomId"
+                  placeholder="Enter meeting ID"
+                  maxlength="20"
+                />
+              </div>
+
+              <!-- Room Type Selection -->
+              <div class="form-group">
+                <label>Room Type</label>
+                <div class="room-type-options">
+                  <label class="room-type-option">
+                    <input type="radio" name="roomType" value="video" checked />
+                    <div class="room-type-card">
+                      <i class="fas fa-video"></i>
+                      <span>Video Room</span>
+                      <small>Full video and audio</small>
+                    </div>
+                  </label>
+                  <label class="room-type-option">
+                    <input type="radio" name="roomType" value="audio" />
+                    <div class="room-type-card">
+                      <i class="fas fa-microphone"></i>
+                      <span>Audio Room</span>
+                      <small>Audio only</small>
+                    </div>
+                  </label>
+                  <label class="room-type-option">
+                    <input type="radio" name="roomType" value="chat" />
+                    <div class="room-type-card">
+                      <i class="fas fa-comments"></i>
+                      <span>Chat Room</span>
+                      <small>Text chat only</small>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <button id="joinBtn" class="join-button">
+                <i class="fas fa-phone"></i>
+                Join Meeting
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Video Section -->
+        <div class="video-section" id="videoSection" style="display: none">
+          <!-- Main Video Area -->
+          <div class="video-main">
+            <div class="video-grid" id="videoGrid">
+              <div class="video-container main-video">
+                <video id="localVideo" autoplay muted playsinline></video>
+                <div class="video-overlay">
+                  <div class="video-label">You</div>
+                  <div class="video-status">
+                    <i class="fas fa-microphone status-icon"></i>
+                    <i class="fas fa-video status-icon"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Controls Bar -->
+          <div class="controls-bar">
+            <div class="controls-left">
+              <button id="toggleAudio" class="control-btn">
+                <i class="fas fa-microphone control-icon"></i>
+                <span class="control-text">Audio</span>
+              </button>
+              <button id="toggleVideo" class="control-btn">
+                <i class="fas fa-video control-icon"></i>
+                <span class="control-text">Video</span>
+              </button>
+            </div>
+
+            <div class="controls-center">
+              <button id="screenShare" class="control-btn">
+                <i class="fas fa-desktop control-icon"></i>
+                <span class="control-text">Share Screen</span>
+              </button>
+              <button id="toggleChat" class="control-btn">
+                <i class="fas fa-comments control-icon"></i>
+                <span class="control-text">Chat</span>
+              </button>
+            </div>
+
+            <div class="controls-right">
+              <button id="leaveBtn" class="control-btn leave">
+                <i class="fas fa-phone-slash control-icon"></i>
+                <span class="control-text">Leave</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat Only Section -->
+        <div
+          class="chat-only-section"
+          id="chatOnlySection"
+          style="display: none"
+        >
+          <div class="chat-only-container">
+            <div class="chat-only-header">
+              <h2>Chat Room</h2>
+              <div class="room-info-display">
+                <span class="room-name-display" id="chatRoomName">-</span>
+                <span
+                  class="participant-count-display"
+                  id="chatParticipantCount"
+                  >1 participant</span
+                >
+              </div>
+            </div>
+            <div class="chat-only-messages" id="chatOnlyMessages">
+              <!-- Messages will be added here dynamically -->
+            </div>
+            <div class="chat-only-input-container">
+              <input
+                type="text"
+                id="chatOnlyInput"
+                placeholder="Type a message..."
+                maxlength="500"
+              />
+              <button id="sendChatOnlyMessage" class="send-message-btn">
+                <i class="fas fa-paper-plane"></i>
+              </button>
+            </div>
+            <div class="chat-only-controls">
+              <button id="leaveChatBtn" class="control-btn leave">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Leave Chat</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Panel -->
+      <div class="chat-panel" id="chatPanel">
+        <div class="chat-header">
+          <h3>Chat</h3>
+          <button id="toggleChatArrow" class="toggle-chat-btn">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+          <!-- Messages will be added here dynamically -->
+        </div>
+        <div class="chat-input-container">
+          <input
+            type="text"
+            id="chatInput"
+            placeholder="Type a message..."
+            maxlength="500"
+          />
+          <button id="sendMessage" class="send-message-btn">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <h3>Participants</h3>
+          <span class="participant-count" id="participantCount">1</span>
+        </div>
+        <div class="participants-list" id="participantsList"></div>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client.js"></script>
+  </body>
+</html>
