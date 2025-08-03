@@ -1,11 +1,14 @@
 services:
   - type: web
-    name: video-call-server
+    name: video-call-app
     env: node
     buildCommand: npm install
-    startCommand: npm start
+    startCommand: node server.js
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 10000 
+        value: 10000
+    healthCheckPath: /health
+    autoDeploy: true
+    plan: starter 

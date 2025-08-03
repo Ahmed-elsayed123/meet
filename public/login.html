@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meeting App - Login / Signup</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔐</text></svg>"
+    />
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* Custom styles for the Inter font */
+      @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #f0f2f5; /* Light gray background */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        padding: 1rem;
+        box-sizing: border-box;
+      }
+      .main-container {
+        display: flex;
+        background-color: #ffffff;
+        border-radius: 1.5rem; /* More rounded corners */
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+          0 10px 10px -5px rgba(0, 0, 0, 0.04); /* Deeper shadow */
+        width: 100%;
+        max-width: 900px; /* Increased max-width for the two-column layout */
+        overflow: hidden; /* Ensures rounded corners apply to image */
+        border: 1px solid #e2e8f0; /* Subtle border */
+      }
+      .image-container {
+        flex: 1; /* Takes up available space */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #aec6cf; /* Background color for the image section */
+        padding: 1rem;
+        /* Hide image on small screens, show on medium and up */
+        display: none;
+      }
+      .image-container img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover; /* Ensures image covers the area without distortion */
+        border-radius: 1rem; /* Slightly rounded image corners */
+      }
+      .form-wrapper {
+        flex: 1; /* Takes up available space */
+        padding: 2.5rem;
+        width: 100%; /* Ensure it takes full width on small screens */
+        max-width: 420px; /* Max width for the form content itself */
+        transition: all 0.3s ease-in-out;
+        display: flex;
+        flex-direction: column;
+        justify-content: center; /* Center form vertically */
+      }
+      /* Responsive adjustments */
+      @media (min-width: 768px) {
+        /* Medium screens and up */
+        .image-container {
+          display: flex; /* Show image container */
+          width: 50%; /* Image takes half width */
+        }
+        .form-wrapper {
+          width: 50%; /* Form takes half width */
+        }
+      }
+      .input-field {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
+        border: 1px solid #cbd5e0; /* Light border */
+        border-radius: 0.75rem; /* Rounded input fields */
+        font-size: 1rem;
+        transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        outline: none;
+      }
+      .input-field:focus {
+        border-color: #3b82f6; /* Blue border on focus */
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25); /* Blue glow on focus */
+      }
+      .submit-button {
+        width: 100%;
+        padding: 0.85rem 1.5rem;
+        background-image: linear-gradient(
+          to right,
+          #3b82f6,
+          #2563eb
+        ); /* Blue gradient */
+        color: white;
+        border: none;
+        border-radius: 0.75rem; /* Rounded button */
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      }
+      .submit-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 10px -1px rgba(0, 0, 0, 0.15),
+          0 4px 6px -2px rgba(0, 0, 0, 0.08);
+      }
+      .submit-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
+      .toggle-button {
+        background-color: transparent;
+        border: none;
+        color: #3b82f6;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 0.5rem 0;
+        transition: color 0.2s ease-in-out;
+      }
+      .toggle-button:hover {
+        color: #2563eb;
+      }
+      .message-box {
+        background-color: #fef2f2; /* Light red for errors */
+        color: #ef4444; /* Red text */
+        border: 1px solid #ef4444;
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+        margin-top: 1rem;
+        font-size: 0.9rem;
+        text-align: center;
+        display: none; /* Hidden by default */
+      }
+      .message-box.success {
+        background-color: #ecfdf5; /* Light green for success */
+        color: #10b981; /* Green text */
+        border-color: #10b981;
+      }
+      .loading {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: #fff;
+        animation: spin 1s ease-in-out infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .google-button {
+        width: 100%;
+        padding: 0.85rem 1.5rem;
+        background-color: #ffffff;
+        color: #374151;
+        border: 1px solid #d1d5db;
+        border-radius: 0.75rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1),
+          0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+      }
+      .google-button:hover {
+        background-color: #f9fafb;
+        border-color: #9ca3af;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      }
+      .google-button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
+      .google-icon {
+        width: 18px;
+        height: 18px;
+      }
+      .divider {
+        display: flex;
+        align-items: center;
+        margin: 1.5rem 0;
+        color: #6b7280;
+        font-size: 0.875rem;
+      }
+      .divider::before,
+      .divider::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background-color: #e5e7eb;
+      }
+      .divider::before {
+        margin-right: 1rem;
+      }
+      .divider::after {
+        margin-left: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main-container">
+      <!-- Image Section (Left Side) -->
+      <div class="image-container">
+        <img
+          src="https://placehold.co/600x800/AEC6CF/FFFFFF?text=Meeting+Illustration"
+          alt="Meeting Illustration"
+        />
+      </div>
+      <!-- Form Section (Right Side) -->
+      <div class="form-wrapper">
+        <!-- Login Form -->
+        <div id="loginForm" class="block">
+          <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">
+            Welcome Back!
+          </h2>
+
+          <!-- Google Login Button -->
+          <button
+            type="button"
+            class="google-button"
+            id="googleLoginBtn"
+            onclick="handleGoogleLogin()"
+          >
+            <svg class="google-icon" viewBox="0 0 24 24">
+              <path
+                fill="#4285F4"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+              />
+            </svg>
+            Continue with Google
+          </button>
+
+          <div class="divider">or</div>
+
+          <form id="login" onsubmit="handleLogin(event)">
+            <input
+              type="email"
+              id="loginEmail"
+              class="input-field"
+              placeholder="Email Address"
+              required
+            />
+            <input
+              type="password"
+              id="loginPassword"
+              class="input-field"
+              placeholder="Password"
+              required
+            />
+            <button type="submit" class="submit-button" id="loginBtn">
+              <span id="loginBtnText">Log In</span>
+              <span
+                id="loginBtnSpinner"
+                class="loading"
+                style="display: none"
+              ></span>
+            </button>
+          </form>
+          <p class="text-center text-gray-600 mt-4">
+            Don't have an account?
+            <button id="showSignup" class="toggle-button">Sign Up</button>
+          </p>
+          <div id="loginMessage" class="message-box"></div>
+        </div>
+        <!-- Signup Form -->
+        <div id="signupForm" class="hidden">
+          <h2 class="text-3xl font-bold text-center text-gray-800 mb-6">
+            Join Us!
+          </h2>
+
+          <!-- Google Signup Button -->
+          <button
+            type="button"
+            class="google-button"
+            id="googleSignupBtn"
+            onclick="handleGoogleLogin()"
+          >
+            <svg class="google-icon" viewBox="0 0 24 24">
+              <path
+                fill="#4285F4"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+              />
+            </svg>
+            Continue with Google
+          </button>
+
+          <div class="divider">or</div>
+
+          <form id="signup" onsubmit="handleSignup(event)">
+            <input
+              type="text"
+              id="signupName"
+              class="input-field"
+              placeholder="Full Name"
+              required
+            />
+            <input
+              type="email"
+              id="signupEmail"
+              class="input-field"
+              placeholder="Email Address"
+              required
+            />
+            <input
+              type="password"
+              id="signupPassword"
+              class="input-field"
+              placeholder="Password"
+              required
+            />
+            <input
+              type="password"
+              id="confirmPassword"
+              class="input-field"
+              placeholder="Confirm Password"
+              required
+            />
+            <button type="submit" class="submit-button" id="signupBtn">
+              <span id="signupBtnText">Sign Up</span>
+              <span
+                id="signupBtnSpinner"
+                class="loading"
+                style="display: none"
+              ></span>
+            </button>
+          </form>
+          <p class="text-center text-gray-600 mt-4">
+            Already have an account?
+            <button id="showLogin" class="toggle-button">Log In</button>
+          </p>
+          <div id="signupMessage" class="message-box"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+      // Import the functions you need from the SDKs you need
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+      import {
+        getAuth,
+        createUserWithEmailAndPassword,
+        signInWithEmailAndPassword,
+        onAuthStateChanged,
+        GoogleAuthProvider,
+        signInWithPopup,
+      } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+      import {
+        getFirestore,
+        doc,
+        setDoc,
+        getDoc,
+      } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+      import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
+
+      // Your web app's Firebase configuration
+      const firebaseConfig = {
+        apiKey: "AIzaSyDRZbmJ1Xz9T-wtNouK202LElIgY3Ub_VY",
+        authDomain: "proapp-ae75d.firebaseapp.com",
+        projectId: "proapp-ae75d",
+        storageBucket: "proapp-ae75d.firebasestorage.app",
+        messagingSenderId: "1051955180155",
+        appId: "1:1051955180155:web:7200f3db3023cf94f8e8de",
+        measurementId: "G-QF88WEY2SK",
+      };
+
+      // Initialize Firebase
+      let app, auth, db, analytics;
+      try {
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+        analytics = getAnalytics(app);
+
+        console.log("Firebase initialized successfully");
+      } catch (error) {
+        console.error("Firebase initialization error:", error);
+      }
+
+      // Make Firebase auth available globally
+      window.auth = auth;
+      window.db = db;
+      window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+      window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+      window.onAuthStateChanged = onAuthStateChanged;
+      window.GoogleAuthProvider = GoogleAuthProvider;
+      window.signInWithPopup = signInWithPopup;
+      window.setDoc = setDoc;
+      window.doc = doc;
+      window.getDoc = getDoc;
+
+      // Check if user is already logged in
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          // User is signed in, redirect to dashboard
+          console.log("User is already signed in:", user.email);
+          window.location.href = "/dashboard.html";
+        } else {
+          console.log("No user is signed in");
+        }
+      });
+    </script>
+
+    <script>
+      // Get references to the form containers and toggle buttons
+      const loginForm = document.getElementById("loginForm");
+      const signupForm = document.getElementById("signupForm");
+      const showSignupBtn = document.getElementById("showSignup");
+      const showLoginBtn = document.getElementById("showLogin");
+      const loginMessageDiv = document.getElementById("loginMessage");
+      const signupMessageDiv = document.getElementById("signupMessage");
+
+      // Function to set loading state
+      function setLoading(buttonId, textId, spinnerId, isLoading) {
+        const button = document.getElementById(buttonId);
+        const text = document.getElementById(textId);
+        const spinner = document.getElementById(spinnerId);
+
+        if (isLoading) {
+          button.disabled = true;
+          text.style.display = "none";
+          spinner.style.display = "inline-block";
+        } else {
+          button.disabled = false;
+          text.style.display = "inline";
+          spinner.style.display = "none";
+        }
+      }
+
+      // Function to display messages
+      function showMessage(element, message, isSuccess = false) {
+        element.textContent = message;
+        element.classList.remove("hidden", "success");
+        element.classList.add("block");
+        if (isSuccess) {
+          element.classList.add("success");
+        } else {
+          element.classList.remove("success");
+        }
+      }
+
+      // Function to hide messages
+      function hideMessage(element) {
+        element.textContent = "";
+        element.classList.remove("block", "success");
+        element.classList.add("hidden");
+      }
+
+      // Function to handle Google login
+      async function handleGoogleLogin() {
+        const googleLoginBtn = document.getElementById("googleLoginBtn");
+        const googleSignupBtn = document.getElementById("googleSignupBtn");
+        const loginMessageDiv = document.getElementById("loginMessage");
+        const signupMessageDiv = document.getElementById("signupMessage");
+
+        // Determine which form is currently visible
+        const isLoginForm = !loginForm.classList.contains("hidden");
+        const messageDiv = isLoginForm ? loginMessageDiv : signupMessageDiv;
+        const button = isLoginForm ? googleLoginBtn : googleSignupBtn;
+
+        // Clear previous messages
+        hideMessage(messageDiv);
+
+        // Disable button and show loading
+        button.disabled = true;
+        button.innerHTML = `
+          <div class="loading"></div>
+          <span>Signing in...</span>
+        `;
+
+        try {
+          // Create Google Auth Provider
+          const provider = new window.GoogleAuthProvider();
+
+          // Sign in with popup
+          const result = await window.signInWithPopup(window.auth, provider);
+          const user = result.user;
+
+          console.log("Google login successful:", user.email);
+
+          // Create or update user profile in Firestore
+          try {
+            await window.setDoc(
+              window.doc(window.db, "users", user.uid),
+              {
+                uid: user.uid,
+                email: user.email,
+                name: user.displayName || user.email.split("@")[0],
+                photoURL: user.photoURL,
+                provider: "google",
+                createdAt: new Date(),
+              },
+              { merge: true }
+            ); // Use merge to update existing documents
+            console.log("Google user profile saved to Firestore:", user.uid);
+          } catch (firestoreError) {
+            console.warn(
+              "Firestore save failed, but login successful:",
+              firestoreError
+            );
+            // Continue with login even if Firestore save fails
+          }
+
+          showMessage(
+            messageDiv,
+            "Login successful! Redirecting to dashboard...",
+            true
+          );
+          setTimeout(() => {
+            window.location.href = "/dashboard.html";
+          }, 1500);
+        } catch (error) {
+          console.error("Google login error:", error);
+          let errorMessage = "Google login failed. Please try again.";
+
+          // Handle specific Firebase auth errors
+          switch (error.code) {
+            case "auth/popup-closed-by-user":
+              errorMessage = "Login cancelled. Please try again.";
+              break;
+            case "auth/popup-blocked":
+              errorMessage =
+                "Popup blocked by browser. Please allow popups and try again.";
+              break;
+            case "auth/cancelled-popup-request":
+              errorMessage = "Login cancelled. Please try again.";
+              break;
+            case "auth/account-exists-with-different-credential":
+              errorMessage =
+                "An account already exists with this email using a different sign-in method.";
+              break;
+          }
+
+          showMessage(messageDiv, errorMessage);
+        } finally {
+          // Reset button state
+          button.disabled = false;
+          button.innerHTML = `
+            <svg class="google-icon" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Continue with Google
+          `;
+        }
+      }
+
+      // Event listener to show the signup form
+      showSignupBtn.addEventListener("click", () => {
+        loginForm.classList.add("hidden");
+        signupForm.classList.remove("hidden");
+        hideMessage(loginMessageDiv); // Clear any previous messages
+        hideMessage(signupMessageDiv);
+        // Clear signup form fields
+        document.getElementById("signupName").value = "";
+        document.getElementById("signupEmail").value = "";
+        document.getElementById("signupPassword").value = "";
+        document.getElementById("confirmPassword").value = "";
+      });
+
+      // Event listener to show the login form
+      showLoginBtn.addEventListener("click", () => {
+        signupForm.classList.add("hidden");
+        loginForm.classList.remove("hidden");
+        hideMessage(signupMessageDiv); // Clear any previous messages
+        hideMessage(loginMessageDiv);
+        // Clear login form fields
+        document.getElementById("loginEmail").value = "";
+        document.getElementById("loginPassword").value = "";
+      });
+
+      // Function to handle login form submission
+      async function handleLogin(event) {
+        event.preventDefault(); // Prevent default form submission
+
+        const email = document.getElementById("loginEmail").value;
+        const password = document.getElementById("loginPassword").value;
+
+        hideMessage(loginMessageDiv); // Clear previous messages
+
+        // Basic client-side validation for login
+        if (!email || !password) {
+          showMessage(loginMessageDiv, "Please fill in all fields.");
+          return;
+        }
+        if (!/\S+@\S+\.\S+/.test(email)) {
+          showMessage(loginMessageDiv, "Please enter a valid email address.");
+          return;
+        }
+
+        // Set loading state
+        setLoading("loginBtn", "loginBtnText", "loginBtnSpinner", true);
+
+        try {
+          // Use Firebase authentication
+          const userCredential = await window.signInWithEmailAndPassword(
+            window.auth,
+            email,
+            password
+          );
+          const user = userCredential.user;
+
+          console.log("Login successful:", user.email);
+          showMessage(
+            loginMessageDiv,
+            "Login successful! Redirecting to dashboard...",
+            true
+          );
+          setTimeout(() => {
+            window.location.href = "/dashboard";
+          }, 1500);
+        } catch (error) {
+          console.error("Login error:", error);
+          let errorMessage = "Login failed. Please try again.";
+
+          // Handle specific Firebase auth errors
+          switch (error.code) {
+            case "auth/user-not-found":
+              errorMessage = "No account found with this email address.";
+              break;
+            case "auth/wrong-password":
+              errorMessage = "Incorrect password. Please try again.";
+              break;
+            case "auth/invalid-email":
+              errorMessage = "Invalid email address.";
+              break;
+            case "auth/too-many-requests":
+              errorMessage =
+                "Too many failed attempts. Please try again later.";
+              break;
+            case "auth/user-disabled":
+              errorMessage = "This account has been disabled.";
+              break;
+          }
+
+          showMessage(loginMessageDiv, errorMessage);
+        } finally {
+          // Reset loading state
+          setLoading("loginBtn", "loginBtnText", "loginBtnSpinner", false);
+        }
+      }
+
+      // Function to handle signup form submission
+      async function handleSignup(event) {
+        event.preventDefault(); // Prevent default form submission
+
+        const name = document.getElementById("signupName").value;
+        const email = document.getElementById("signupEmail").value;
+        const password = document.getElementById("signupPassword").value;
+        const confirmPassword =
+          document.getElementById("confirmPassword").value;
+
+        hideMessage(signupMessageDiv); // Clear previous messages
+
+        // Basic client-side validation for signup
+        if (!name || !email || !password || !confirmPassword) {
+          showMessage(signupMessageDiv, "Please fill in all fields.");
+          return;
+        }
+        if (name.trim().length < 2) {
+          showMessage(
+            signupMessageDiv,
+            "Name must be at least 2 characters long."
+          );
+          return;
+        }
+        if (!/\S+@\S+\.\S+/.test(email)) {
+          showMessage(signupMessageDiv, "Please enter a valid email address.");
+          return;
+        }
+        if (password.length < 6) {
+          showMessage(
+            signupMessageDiv,
+            "Password must be at least 6 characters long."
+          );
+          return;
+        }
+        if (password !== confirmPassword) {
+          showMessage(signupMessageDiv, "Passwords do not match.");
+          return;
+        }
+
+        // Set loading state
+        setLoading("signupBtn", "signupBtnText", "signupBtnSpinner", true);
+
+        try {
+          // Use Firebase authentication
+          const userCredential = await window.createUserWithEmailAndPassword(
+            window.auth,
+            email,
+            password
+          );
+          const user = userCredential.user;
+
+          console.log("Signup successful:", user.email);
+          showMessage(
+            signupMessageDiv,
+            "Account created successfully! Redirecting to dashboard...",
+            true
+          );
+          setTimeout(() => {
+            window.location.href = "/dashboard.html";
+          }, 1500);
+
+          // Store user's name in Firestore
+          try {
+            await window.setDoc(window.doc(window.db, "users", user.uid), {
+              uid: user.uid,
+              email: user.email,
+              name: name,
+              createdAt: new Date(),
+            });
+            console.log("User profile saved to Firestore:", user.uid);
+          } catch (firestoreError) {
+            console.warn(
+              "Firestore save failed, but signup successful:",
+              firestoreError
+            );
+            // Continue with signup even if Firestore save fails
+          }
+        } catch (error) {
+          console.error("Signup error:", error);
+          let errorMessage = "Signup failed. Please try again.";
+
+          // Handle specific Firebase auth errors
+          switch (error.code) {
+            case "auth/email-already-in-use":
+              errorMessage = "An account with this email already exists.";
+              break;
+            case "auth/invalid-email":
+              errorMessage = "Invalid email address.";
+              break;
+            case "auth/weak-password":
+              errorMessage =
+                "Password is too weak. Please choose a stronger password.";
+              break;
+            case "auth/operation-not-allowed":
+              errorMessage =
+                "Email/password accounts are not enabled. Please contact support.";
+              break;
+          }
+
+          showMessage(signupMessageDiv, errorMessage);
+        } finally {
+          // Reset loading state
+          setLoading("signupBtn", "signupBtnText", "signupBtnSpinner", false);
+        }
+      }
+    </script>
+  </body>
+</html>

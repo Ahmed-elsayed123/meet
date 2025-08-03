@@ -1,193 +1,402 @@
 const express = require("express");
+const path = require("path");
 const http = require("http");
 const socketIo = require("socket.io");
-const cors = require("cors");
-const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: ["https://meet-topaz-beta.vercel.app", "http://localhost:3000"],
+    origin: "*",
     methods: ["GET", "POST"],
-    credentials: true,
   },
-  transports: ["websocket", "polling"],
-  allowEIO3: true,
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  upgradeTimeout: 10000,
-  maxHttpBufferSize: 1e8,
+  transports: ["websocket", "polling"], // Ensure both transports are available
+  allowEIO3: true, // Allow Engine.IO v3 clients
 });
 
-app.use(cors());
-app.use(express.static(path.join(__dirname, "public")));
+// Serve static files
+app.use(express.static("public"));
 
-// Store connected users and rooms
-const connectedUsers = new Map();
-const rooms = new Map();
+// Routes
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "login.html"));
+});
+
+app.get("/dashboard", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "dashboard.html"));
+});
+
+app.get("/meeting-room", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "meeting-room.html"));
+});
+
+// Socket.IO connection handling
+const rooms = new Map(); // Store room information
+const userSockets = new Map(); // Map userId to socketId for reconnection
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  // Handle user joining a room
+  // Join a meeting room
   socket.on("join-room", (data) => {
-    const { userId, roomId } = data;
+    try {
+      const { roomId, userId, userName } = data;
 
-    // Join the socket to the room
-    socket.join(roomId);
-
-    // Store user info
-    connectedUsers.set(socket.id, { userId, roomId });
-
-    // Initialize room if it doesn't exist
-    if (!rooms.has(roomId)) {
-      rooms.set(roomId, new Set());
-    }
-
-    // Add user to room
-    rooms.get(roomId).add(socket.id);
-
-    // Notify other users in the room
-    socket.to(roomId).emit("user-joined", { userId, socketId: socket.id });
-
-    // Send current room participants to the joining user
-    const roomParticipants = Array.from(rooms.get(roomId))
-      .filter((id) => id !== socket.id)
-      .map((id) => connectedUsers.get(id)?.userId)
-      .filter(Boolean);
-
-    socket.emit("room-participants", roomParticipants);
-
-    console.log(
-      `User ${userId} joined room ${roomId} with socket ${socket.id}`
-    );
-  });
-
-  // Handle WebRTC signaling within room
-  socket.on("offer", (data) => {
-    const userInfo = connectedUsers.get(socket.id);
-    if (userInfo) {
-      socket.to(data.target).emit("offer", {
-        offer: data.offer,
-        from: socket.id,
-        fromUserId: userInfo.userId,
-      });
-    }
-  });
-
-  socket.on("answer", (data) => {
-    const userInfo = connectedUsers.get(socket.id);
-    if (userInfo) {
-      socket.to(data.target).emit("answer", {
-        answer: data.answer,
-        from: socket.id,
-      });
-    }
-  });
-
-  socket.on("ice-candidate", (data) => {
-    const userInfo = connectedUsers.get(socket.id);
-    if (userInfo) {
-      socket.to(data.target).emit("ice-candidate", {
-        candidate: data.candidate,
-        from: socket.id,
-      });
-    }
-  });
-
-  // Handle chat messages
-  socket.on("send-message", (data) => {
-    const userInfo = connectedUsers.get(socket.id);
-    if (userInfo && userInfo.roomId === data.roomId) {
-      const messageData = {
-        userId: userInfo.userId,
-        message: data.message,
-        timestamp: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        roomId: data.roomId,
-      };
-
-      // Broadcast message to all users in the room (including sender)
-      io.to(data.roomId).emit("chat-message", messageData);
-
-      console.log(
-        `Chat message from ${userInfo.userId} in room ${data.roomId}: ${data.message}`
-      );
-    }
-  });
-
-  // Handle audio toggle events
-  socket.on("audio-toggled", (data) => {
-    const userInfo = connectedUsers.get(socket.id);
-    if (userInfo && userInfo.roomId === data.roomId) {
-      // Broadcast to all other users in the room
-      socket.to(data.roomId).emit("user-audio-toggled", {
-        socketId: socket.id,
-        userId: userInfo.userId,
-        enabled: data.enabled,
-      });
-
-      console.log(
-        `Audio ${data.enabled ? "enabled" : "disabled"} by ${
-          userInfo.userId
-        } in room ${data.roomId}`
-      );
-    }
-  });
-
-  // Handle video toggle events
-  socket.on("video-toggled", (data) => {
-    const userInfo = connectedUsers.get(socket.id);
-    if (userInfo && userInfo.roomId === data.roomId) {
-      // Broadcast to all other users in the room
-      socket.to(data.roomId).emit("user-video-toggled", {
-        socketId: socket.id,
-        userId: userInfo.userId,
-        enabled: data.enabled,
-      });
-
-      console.log(
-        `Video ${data.enabled ? "enabled" : "disabled"} by ${
-          userInfo.userId
-        } in room ${data.roomId}`
-      );
-    }
-  });
-
-  // Handle user disconnection
-  socket.on("disconnect", () => {
-    const userInfo = connectedUsers.get(socket.id);
-    if (userInfo) {
-      const { userId, roomId } = userInfo;
-
-      // Remove user from room
-      if (rooms.has(roomId)) {
-        rooms.get(roomId).delete(socket.id);
-
-        // Remove room if empty
-        if (rooms.get(roomId).size === 0) {
-          rooms.delete(roomId);
-        }
+      if (!roomId || !userId || !userName) {
+        console.error("Invalid join-room data:", data);
+        socket.emit("error", { message: "Invalid room data" });
+        return;
       }
 
-      // Notify other users in the room
-      socket.to(roomId).emit("user-left", { userId, socketId: socket.id });
+      console.log(
+        `User ${userName} (${userId}) attempting to join room ${roomId}`
+      );
 
-      // Remove user from connected users
-      connectedUsers.delete(socket.id);
+      // Leave any existing rooms
+      socket.rooms.forEach((room) => {
+        if (room !== socket.id) {
+          socket.leave(room);
+        }
+      });
+
+      socket.join(roomId);
+
+      // Initialize room if it doesn't exist
+      if (!rooms.has(roomId)) {
+        rooms.set(roomId, {
+          participants: new Map(),
+          messages: [],
+          createdAt: new Date(),
+        });
+        console.log(`Created new room: ${roomId}`);
+      }
+
+      const room = rooms.get(roomId);
+
+      // Store user socket mapping
+      userSockets.set(userId, socket.id);
+
+      // Add user to room participants
+      room.participants.set(socket.id, {
+        userId,
+        userName,
+        joinedAt: new Date(),
+        isActive: true,
+      });
+
+      // Notify others in the room
+      socket.to(roomId).emit("user-joined", {
+        socketId: socket.id,
+        userId,
+        userName,
+      });
+
+      // Send current participants to the new user
+      const participants = Array.from(room.participants.entries())
+        .filter(([_, user]) => user.isActive)
+        .map(([id, user]) => ({
+          socketId: id,
+          userId: user.userId,
+          userName: user.userName,
+        }));
+
+      socket.emit("room-participants", participants);
+
+      // Send chat history
+      socket.emit("chat-history", room.messages);
 
       console.log(
-        `User ${userId} disconnected from room ${roomId} (socket ${socket.id})`
+        `User ${userName} successfully joined room ${roomId}. Total participants: ${room.participants.size}`
       );
+
+      // Send confirmation to the user
+      socket.emit("room-joined", {
+        roomId,
+        participants: participants.length,
+        message: "Successfully joined the room",
+      });
+    } catch (error) {
+      console.error("Error in join-room:", error);
+      socket.emit("error", { message: "Failed to join room" });
     }
   });
+
+  // WebRTC signaling - Offer
+  socket.on("offer", (data) => {
+    try {
+      const { target, offer } = data;
+
+      if (!target || !offer) {
+        console.error("Invalid offer data:", data);
+        return;
+      }
+
+      console.log(`Forwarding offer from ${socket.id} to ${target}`);
+
+      // Check if target is still in the room
+      const targetSocket = io.sockets.sockets.get(target);
+      if (targetSocket) {
+        targetSocket.emit("offer", {
+          offer: offer,
+          from: socket.id,
+        });
+      } else {
+        console.warn(
+          `Target socket ${target} not found for offer from ${socket.id}`
+        );
+      }
+    } catch (error) {
+      console.error("Error handling offer:", error);
+    }
+  });
+
+  // WebRTC signaling - Answer
+  socket.on("answer", (data) => {
+    try {
+      const { target, answer } = data;
+
+      if (!target || !answer) {
+        console.error("Invalid answer data:", data);
+        return;
+      }
+
+      console.log(`Forwarding answer from ${socket.id} to ${target}`);
+
+      const targetSocket = io.sockets.sockets.get(target);
+      if (targetSocket) {
+        targetSocket.emit("answer", {
+          answer: answer,
+          from: socket.id,
+        });
+      } else {
+        console.warn(
+          `Target socket ${target} not found for answer from ${socket.id}`
+        );
+      }
+    } catch (error) {
+      console.error("Error handling answer:", error);
+    }
+  });
+
+  // WebRTC signaling - ICE Candidate
+  socket.on("ice-candidate", (data) => {
+    try {
+      const { target, candidate } = data;
+
+      if (!target || !candidate) {
+        console.error("Invalid ICE candidate data:", data);
+        return;
+      }
+
+      console.log(`Forwarding ICE candidate from ${socket.id} to ${target}`);
+
+      const targetSocket = io.sockets.sockets.get(target);
+      if (targetSocket) {
+        targetSocket.emit("ice-candidate", {
+          candidate: candidate,
+          from: socket.id,
+        });
+      } else {
+        console.warn(
+          `Target socket ${target} not found for ICE candidate from ${socket.id}`
+        );
+      }
+    } catch (error) {
+      console.error("Error handling ICE candidate:", error);
+    }
+  });
+
+  // Chat messages
+  socket.on("chat-message", (data) => {
+    try {
+      const { roomId, message, userName, userId } = data;
+
+      if (!roomId || !message || !userName || !userId) {
+        console.error("Invalid chat message data:", data);
+        return;
+      }
+
+      if (rooms.has(roomId)) {
+        const room = rooms.get(roomId);
+        const chatMessage = {
+          id: Date.now() + Math.random(), // Ensure unique ID
+          message,
+          userName,
+          userId,
+          timestamp: new Date().toISOString(),
+        };
+
+        room.messages.push(chatMessage);
+
+        // Keep only last 100 messages to prevent memory issues
+        if (room.messages.length > 100) {
+          room.messages = room.messages.slice(-100);
+        }
+
+        // Broadcast to all users in the room
+        io.to(roomId).emit("chat-message", chatMessage);
+
+        console.log(
+          `Chat message from ${userName} in room ${roomId}: ${message.substring(
+            0,
+            50
+          )}...`
+        );
+      } else {
+        console.warn(`Room ${roomId} not found for chat message`);
+      }
+    } catch (error) {
+      console.error("Error handling chat message:", error);
+    }
+  });
+
+  // Screen share signaling
+  socket.on("screen-share-start", (data) => {
+    try {
+      const { roomId, userName } = data;
+
+      if (!roomId || !userName) {
+        console.error("Invalid screen share start data:", data);
+        return;
+      }
+
+      console.log(`Screen share started by ${userName} in room ${roomId}`);
+
+      socket.to(roomId).emit("screen-share-start", {
+        from: socket.id,
+        userName: userName,
+      });
+    } catch (error) {
+      console.error("Error handling screen share start:", error);
+    }
+  });
+
+  socket.on("screen-share-stop", (data) => {
+    try {
+      const { roomId } = data;
+
+      if (!roomId) {
+        console.error("Invalid screen share stop data:", data);
+        return;
+      }
+
+      console.log(`Screen share stopped in room ${roomId}`);
+
+      socket.to(roomId).emit("screen-share-stop", {
+        from: socket.id,
+      });
+    } catch (error) {
+      console.error("Error handling screen share stop:", error);
+    }
+  });
+
+  // Ping/Pong for connection health
+  socket.on("ping", () => {
+    socket.emit("pong");
+  });
+
+  // Handle disconnection
+  socket.on("disconnect", (reason) => {
+    console.log(`User disconnected: ${socket.id}, reason: ${reason}`);
+
+    // Remove user from all rooms they were in
+    for (const [roomId, room] of rooms.entries()) {
+      if (room.participants.has(socket.id)) {
+        const user = room.participants.get(socket.id);
+
+        // Mark user as inactive instead of immediately removing
+        user.isActive = false;
+        user.leftAt = new Date();
+
+        console.log(`User ${user.userName} left room ${roomId}`);
+
+        // Notify others in the room
+        socket.to(roomId).emit("user-left", {
+          socketId: socket.id,
+          userName: user.userName,
+          userId: user.userId,
+        });
+
+        // Clean up inactive users after a delay
+        setTimeout(() => {
+          if (room.participants.has(socket.id)) {
+            const inactiveUser = room.participants.get(socket.id);
+            if (!inactiveUser.isActive) {
+              room.participants.delete(socket.id);
+              console.log(
+                `Removed inactive user ${inactiveUser.userName} from room ${roomId}`
+              );
+            }
+          }
+
+          // Clean up empty rooms
+          if (room.participants.size === 0) {
+            rooms.delete(roomId);
+            console.log(`Room ${roomId} deleted (empty)`);
+          }
+        }, 30000); // Wait 30 seconds before cleanup
+
+        break;
+      }
+    }
+
+    // Remove from userSockets map
+    for (const [userId, socketId] of userSockets.entries()) {
+      if (socketId === socket.id) {
+        userSockets.delete(userId);
+        break;
+      }
+    }
+  });
+
+  // Error handling
+  socket.on("error", (error) => {
+    console.error("Socket error:", error);
+  });
+});
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    rooms: rooms.size,
+    connections: io.engine.clientsCount,
+  });
+});
+
+// Room info endpoint
+app.get("/api/rooms", (req, res) => {
+  const roomInfo = Array.from(rooms.entries()).map(([roomId, room]) => ({
+    roomId,
+    participants: room.participants.size,
+    createdAt: room.createdAt,
+    messages: room.messages.length,
+  }));
+
+  res.json(roomInfo);
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Open http://localhost:${PORT} in your browser`);
+  console.log(`🚀 Video Call Server running on port ${PORT}`);
+  console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  console.log(`📋 Room info: http://localhost:${PORT}/api/rooms`);
+});
+
+// Graceful shutdown
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received, shutting down gracefully");
+  server.close(() => {
+    console.log("Server closed");
+    process.exit(0);
+  });
+});
+
+process.on("SIGINT", () => {
+  console.log("SIGINT received, shutting down gracefully");
+  server.close(() => {
+    console.log("Server closed");
+    process.exit(0);
+  });
 });

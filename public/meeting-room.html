@@ -1,0 +1,2854 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meeting Room</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📹</text></svg>"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: #0f172a;
+        color: #e2e8f0;
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      .header {
+        background-color: #1e293b;
+        padding: 1rem 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid #334155;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+      }
+
+      .meeting-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #f8fafc;
+      }
+
+      .meeting-time {
+        font-size: 0.875rem;
+        color: #94a3b8;
+        margin-top: 0.25rem;
+      }
+
+      .participant-count {
+        background-color: #3b82f6;
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 1rem;
+        font-weight: 600;
+        font-size: 0.875rem;
+      }
+
+      .video-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1rem;
+        padding: 6rem 2rem 6rem 2rem;
+        height: 100vh;
+        overflow-y: auto;
+      }
+
+      .video-item {
+        position: relative;
+        background-color: #1e293b;
+        border-radius: 0.75rem;
+        overflow: hidden;
+        aspect-ratio: 16/9;
+        min-height: 200px;
+      }
+
+      .video-item video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        background-color: #0f172a;
+      }
+
+      .video-overlay {
+        position: absolute;
+        bottom: 1rem;
+        left: 1rem;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+      }
+
+      .video-item.local-video .video-overlay {
+        background-color: rgba(59, 130, 246, 0.8);
+      }
+
+      .audio-indicator {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: #94a3b8;
+        padding: 0.5rem;
+        border-radius: 50%;
+        font-size: 1rem;
+        transition: all 0.2s ease-in-out;
+      }
+
+      .audio-indicator.speaking {
+        color: #10b981;
+        background-color: rgba(16, 185, 129, 0.2);
+        transform: scale(1.1);
+      }
+
+      .camera-status {
+        position: absolute;
+        top: 1rem;
+        left: 1rem;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: #94a3b8;
+        padding: 0.5rem;
+        border-radius: 50%;
+        font-size: 1rem;
+        transition: all 0.2s ease-in-out;
+      }
+
+      .camera-status.working {
+        color: #10b981;
+        background-color: rgba(16, 185, 129, 0.2);
+      }
+
+      .camera-status.error {
+        color: #ef4444;
+        background-color: rgba(239, 68, 68, 0.2);
+      }
+
+      .controls-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background-color: #1e293b;
+        padding: 1.5rem;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1rem;
+        border-top: 1px solid #334155;
+        z-index: 100;
+      }
+
+      .control-btn {
+        width: 3.5rem;
+        height: 3.5rem;
+        border-radius: 50%;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        color: white;
+      }
+
+      .control-btn.primary {
+        background-color: #3b82f6;
+      }
+
+      .control-btn.primary:hover {
+        background-color: #2563eb;
+        transform: scale(1.05);
+      }
+
+      .control-btn.secondary {
+        background-color: #475569;
+      }
+
+      .control-btn.secondary:hover {
+        background-color: #64748b;
+        transform: scale(1.05);
+      }
+
+      .control-btn.danger {
+        background-color: #ef4444;
+      }
+
+      .control-btn.danger:hover {
+        background-color: #dc2626;
+        transform: scale(1.05);
+      }
+
+      .control-btn.active {
+        background-color: #ef4444;
+      }
+
+      .control-btn.muted {
+        background-color: #ef4444;
+      }
+
+      .chat-panel {
+        position: fixed;
+        top: 0;
+        right: -400px;
+        width: 400px;
+        height: 100vh;
+        background-color: #1e293b;
+        border-left: 1px solid #334155;
+        transition: right 0.3s ease-in-out;
+        z-index: 200;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .chat-panel.open {
+        right: 0;
+      }
+
+      .chat-header {
+        padding: 1.5rem;
+        border-bottom: 1px solid #334155;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .chat-title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: #f8fafc;
+      }
+
+      .close-chat {
+        background: none;
+        border: none;
+        color: #94a3b8;
+        font-size: 1.25rem;
+        cursor: pointer;
+        padding: 0.5rem;
+        border-radius: 0.5rem;
+        transition: all 0.2s ease-in-out;
+      }
+
+      .close-chat:hover {
+        background-color: #334155;
+        color: #f8fafc;
+      }
+
+      .chat-messages {
+        flex: 1;
+        padding: 1rem;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .message {
+        background-color: #334155;
+        padding: 1rem;
+        border-radius: 0.75rem;
+        max-width: 100%;
+      }
+
+      .message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+      }
+
+      .message-author {
+        font-weight: 600;
+        color: #3b82f6;
+        font-size: 0.875rem;
+      }
+
+      .message-time {
+        font-size: 0.75rem;
+        color: #94a3b8;
+      }
+
+      .message-content {
+        color: #e2e8f0;
+        line-height: 1.5;
+        word-wrap: break-word;
+      }
+
+      .chat-input {
+        padding: 1rem;
+        border-top: 1px solid #334155;
+      }
+
+      .chat-input form {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .chat-input input {
+        flex: 1;
+        padding: 0.75rem 1rem;
+        border: 1px solid #475569;
+        border-radius: 0.5rem;
+        background-color: #334155;
+        color: #e2e8f0;
+        outline: none;
+      }
+
+      .chat-input input:focus {
+        border-color: #3b82f6;
+      }
+
+      .chat-input button {
+        padding: 0.75rem 1rem;
+        background-color: #3b82f6;
+        color: white;
+        border: none;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: background-color 0.2s ease-in-out;
+      }
+
+      .chat-input button:hover {
+        background-color: #2563eb;
+      }
+
+      .notification {
+        position: fixed;
+        top: 2rem;
+        right: 2rem;
+        padding: 1rem 1.5rem;
+        border-radius: 0.5rem;
+        color: white;
+        font-weight: 500;
+        z-index: 1000;
+        transform: translateX(100%);
+        transition: transform 0.3s ease-in-out;
+      }
+
+      .notification.show {
+        transform: translateX(0);
+      }
+
+      .notification.success {
+        background-color: #10b981;
+      }
+
+      .notification.error {
+        background-color: #ef4444;
+      }
+
+      .notification.info {
+        background-color: #3b82f6;
+      }
+
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+
+      .loading-spinner {
+        width: 50px;
+        height: 50px;
+        border: 3px solid #3b82f6;
+        border-top: 3px solid transparent;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      @media (max-width: 768px) {
+        .video-grid {
+          grid-template-columns: 1fr;
+          padding: 5rem 1rem 5rem 1rem;
+        }
+
+        .chat-panel {
+          width: 100%;
+          right: -100%;
+        }
+
+        .controls-bar {
+          padding: 1rem;
+          gap: 0.5rem;
+        }
+
+        .control-btn {
+          width: 3rem;
+          height: 3rem;
+          font-size: 1rem;
+        }
+
+        .header {
+          padding: 1rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+      <div class="loading-spinner"></div>
+    </div>
+
+    <!-- Header -->
+    <div class="header">
+      <div class="meeting-info">
+        <div class="meeting-title" id="meetingTitle">Loading meeting...</div>
+        <div class="meeting-time" id="meetingTime">Loading...</div>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="participant-count" id="participantCount">0</div>
+        <button
+          class="control-btn secondary"
+          id="shareRoomBtn"
+          title="Share Room ID"
+        >
+          <i class="fas fa-share-alt"></i>
+        </button>
+        <button class="control-btn secondary" id="chatBtn" title="Chat">
+          <i class="fas fa-comments"></i>
+        </button>
+        <button
+          class="control-btn secondary"
+          id="debugBtn"
+          title="Debug Video"
+          style="display: none"
+        >
+          <i class="fas fa-bug"></i>
+        </button>
+        <button
+          class="control-btn secondary"
+          id="cameraTroubleshootBtn"
+          title="Camera Troubleshoot"
+        >
+          <i class="fas fa-camera"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Video Grid -->
+    <div class="video-grid" id="videoGrid">
+      <!-- Videos will be dynamically added here -->
+    </div>
+
+    <!-- Controls Bar -->
+    <div class="controls-bar">
+      <button class="control-btn secondary" id="muteBtn" title="Mute">
+        <i class="fas fa-microphone"></i>
+      </button>
+      <button
+        class="control-btn secondary"
+        id="videoBtn"
+        title="Turn off video"
+      >
+        <i class="fas fa-video"></i>
+      </button>
+      <button
+        class="control-btn secondary"
+        id="screenShareBtn"
+        title="Share screen"
+      >
+        <i class="fas fa-desktop"></i>
+      </button>
+      <button class="control-btn secondary" id="chatBtn2" title="Chat">
+        <i class="fas fa-comments"></i>
+      </button>
+      <button class="control-btn danger" id="leaveBtn" title="Leave meeting">
+        <i class="fas fa-phone-slash"></i>
+      </button>
+    </div>
+
+    <!-- Chat Panel -->
+    <div class="chat-panel" id="chatPanel">
+      <div class="chat-header">
+        <div class="chat-title">Meeting Chat</div>
+        <button class="close-chat" id="closeChatBtn">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <!-- Messages will be dynamically added here -->
+      </div>
+      <div class="chat-input">
+        <form id="chatForm">
+          <input
+            type="text"
+            id="chatInput"
+            placeholder="Type a message..."
+            autocomplete="off"
+          />
+          <button type="submit">
+            <i class="fas fa-paper-plane"></i>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Notifications -->
+    <div id="notificationContainer"></div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+      import {
+        getAuth,
+        onAuthStateChanged,
+      } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+      // Firebase configuration
+      const firebaseConfig = {
+        apiKey: "AIzaSyDRZbmJ1Xz9T-wtNouK202LElIgY3Ub_VY",
+        authDomain: "proapp-ae75d.firebaseapp.com",
+        projectId: "proapp-ae75d",
+        storageBucket: "proapp-ae75d.firebasestorage.app",
+        messagingSenderId: "1051955180155",
+        appId: "1:1051955180155:web:7200f3db3023cf94f8e8de",
+        measurementId: "G-QF88WEY2SK",
+      };
+
+      // Global variables
+      let app, auth, socket, localStream, screenStream;
+      let peerConnections = new Map();
+      let isScreenSharing = false;
+      let isMuted = false;
+      let isVideoOff = false;
+      let currentUser = null;
+      let roomId = null;
+      let recoveryAttempts = new Map(); // Track recovery attempts per socketId
+      let blackVideoHandlers = new Map(); // Track black video handlers per socketId
+
+      // WebRTC Configuration
+      const rtcConfig = {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+          { urls: "stun:stun2.l.google.com:19302" },
+          { urls: "stun:stun3.l.google.com:19302" },
+          { urls: "stun:stun4.l.google.com:19302" },
+        ],
+        iceCandidatePoolSize: 10,
+        bundlePolicy: "max-bundle",
+        rtcpMuxPolicy: "require",
+        iceTransportPolicy: "all",
+        sdpSemantics: "unified-plan",
+      };
+
+      // Initialize Firebase and start the application
+      function initializeMeetingApp() {
+        try {
+          app = initializeApp(firebaseConfig);
+          auth = getAuth(app);
+          console.log("Firebase initialized successfully");
+        } catch (error) {
+          console.error("Firebase initialization error:", error);
+          showNotification("Authentication error", "error");
+          setTimeout(() => (window.location.href = "/"), 2000);
+          return;
+        }
+
+        // Check authentication
+        onAuthStateChanged(auth, (user) => {
+          if (!user) {
+            console.log("No user authenticated, redirecting to login");
+            window.location.href = "/";
+            return;
+          }
+          console.log("User authenticated:", user.email);
+          currentUser = user;
+          initializeMeetingRoom();
+        });
+      }
+
+      function initializeMeetingRoom() {
+        // Get meeting ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        roomId = urlParams.get("id");
+
+        if (!roomId) {
+          showNotification("Meeting ID not found", "error");
+          setTimeout(() => (window.location.href = "/dashboard"), 2000);
+          return;
+        }
+
+        // Get meeting data from localStorage
+        const meetings = JSON.parse(localStorage.getItem("meetings") || "[]");
+        const meeting = meetings.find((m) => m.id === roomId);
+
+        if (!meeting) {
+          console.log(
+            "Meeting not found in localStorage, creating shared meeting entry"
+          );
+          const sharedMeeting = {
+            id: roomId,
+            title: `Shared Meeting (${roomId})`,
+            date: new Date().toLocaleDateString(),
+            time: new Date().toLocaleTimeString(),
+            createdBy: "Shared Room",
+            participants: [],
+          };
+
+          meetings.push(sharedMeeting);
+          localStorage.setItem("meetings", JSON.stringify(meetings));
+
+          document.getElementById("meetingTitle").textContent =
+            sharedMeeting.title;
+          document.getElementById(
+            "meetingTime"
+          ).textContent = `${sharedMeeting.date} at ${sharedMeeting.time}`;
+        } else {
+          document.getElementById("meetingTitle").textContent = meeting.title;
+          document.getElementById(
+            "meetingTime"
+          ).textContent = `${meeting.date} at ${meeting.time}`;
+        }
+
+        // Initialize WebRTC and Socket.IO
+        initializeWebRTC();
+      }
+
+      async function initializeWebRTC() {
+        try {
+          // Connect to Socket.IO server
+          socket = io({
+            transports: ["websocket", "polling"],
+            upgrade: true,
+            rememberUpgrade: true,
+            timeout: 20000,
+            forceNew: true,
+          });
+
+          // Get user media
+          await getUserMedia();
+
+          // Setup socket event listeners
+          setupSocketListeners();
+
+          // Join room
+          socket.emit("join-room", {
+            roomId: roomId,
+            userId: currentUser.uid,
+            userName: currentUser.displayName || currentUser.email,
+          });
+
+          showNotification("Successfully connected to meeting", "success");
+          hideLoadingOverlay();
+
+          // Debug video streams after connection
+          setTimeout(() => {
+            debugVideoStreams();
+          }, 2000);
+
+          // Set up periodic monitoring (less frequent to avoid excessive processing)
+          setInterval(() => {
+            monitorVideoStreams();
+          }, 5000);
+        } catch (error) {
+          console.error("Error initializing WebRTC:", error);
+          showNotification("Failed to initialize video call", "error");
+          hideLoadingOverlay();
+        }
+      }
+
+      async function getUserMedia() {
+        try {
+          console.log("Attempting to get user media with video and audio...");
+
+          // First, try to get both video and audio with specific constraints
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 1280, min: 640 },
+              height: { ideal: 720, min: 480 },
+              frameRate: { ideal: 30, min: 15 },
+              facingMode: "user",
+              aspectRatio: { ideal: 16 / 9 },
+            },
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+              sampleRate: { ideal: 48000 },
+              channelCount: { ideal: 2 },
+            },
+          });
+
+          console.log("Local stream obtained successfully");
+          console.log("Video tracks:", stream.getVideoTracks());
+          console.log("Audio tracks:", stream.getAudioTracks());
+
+          // Verify we have video tracks
+          const videoTracks = stream.getVideoTracks();
+          if (videoTracks.length === 0) {
+            throw new Error("No video tracks found in stream");
+          }
+
+          // Check video track settings and enable them
+          videoTracks.forEach((track, index) => {
+            console.log(`Video track ${index} settings:`, track.getSettings());
+            console.log(`Video track ${index} enabled:`, track.enabled);
+            console.log(`Video track ${index} readyState:`, track.readyState);
+
+            // Ensure track is enabled
+            if (!track.enabled) {
+              track.enabled = true;
+              console.log(`Enabled video track ${index}`);
+            }
+          });
+
+          localStream = stream;
+          addVideoStream(
+            "local",
+            stream,
+            currentUser.displayName || currentUser.email
+          );
+
+          showNotification(
+            "Camera and microphone connected successfully",
+            "success"
+          );
+        } catch (error) {
+          console.error("Error accessing media devices:", error);
+
+          if (error.name === "NotAllowedError") {
+            showNotification(
+              "Camera/microphone access denied. Please allow permissions and refresh the page.",
+              "error"
+            );
+
+            // Show a more helpful message with instructions
+            const notification = document.createElement("div");
+            notification.className = "notification error";
+            notification.innerHTML = `
+              <strong>Permission Required</strong><br>
+              Please allow camera and microphone access, then refresh the page.<br>
+              <button onclick="location.reload()" style="margin-top: 10px; padding: 5px 10px; background: #ef4444; color: white; border: none; border-radius: 3px; cursor: pointer;">Refresh Page</button>
+            `;
+            document
+              .getElementById("notificationContainer")
+              .appendChild(notification);
+            setTimeout(() => notification.classList.add("show"), 100);
+
+            throw error;
+          } else if (error.name === "NotFoundError") {
+            showNotification(
+              "No camera or microphone found. Please connect a device and try again.",
+              "error"
+            );
+            throw error;
+          } else if (
+            error.name === "NotReadableError" ||
+            error.name === "AbortError"
+          ) {
+            console.log(
+              "Device busy or in use, trying alternative approach..."
+            );
+
+            // Try with different constraints
+            try {
+              const alternativeStream =
+                await navigator.mediaDevices.getUserMedia({
+                  video: {
+                    width: { min: 320, ideal: 640 },
+                    height: { min: 240, ideal: 480 },
+                    frameRate: { min: 10, ideal: 24 },
+                  },
+                  audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                  },
+                });
+
+              console.log("Alternative stream obtained successfully");
+              localStream = alternativeStream;
+              addVideoStream(
+                "local",
+                alternativeStream,
+                currentUser.displayName || currentUser.email
+              );
+              showNotification("Connected with alternative settings", "info");
+              return;
+            } catch (altError) {
+              console.error("Alternative approach failed:", altError);
+
+              // Try video only
+              try {
+                const videoOnlyStream =
+                  await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: false,
+                  });
+
+                console.log("Video-only stream obtained");
+                localStream = videoOnlyStream;
+                addVideoStream(
+                  "local",
+                  videoOnlyStream,
+                  currentUser.displayName || currentUser.email
+                );
+                showNotification("Connected with video only", "info");
+                return;
+              } catch (videoError) {
+                console.error("Video-only approach failed:", videoError);
+
+                // Try audio only as final fallback
+                try {
+                  const audioStream = await navigator.mediaDevices.getUserMedia(
+                    {
+                      video: false,
+                      audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                      },
+                    }
+                  );
+
+                  console.log("Audio-only stream obtained");
+                  localStream = audioStream;
+                  addVideoStream(
+                    "local",
+                    audioStream,
+                    currentUser.displayName || currentUser.email
+                  );
+                  showNotification("Connected with audio only", "info");
+                  return;
+                } catch (audioError) {
+                  console.error("Audio-only fallback failed:", audioError);
+                  showNotification(
+                    "Unable to access any media devices. Please check your camera and microphone permissions.",
+                    "error"
+                  );
+                  throw audioError;
+                }
+              }
+            }
+          } else {
+            // Generic error - try basic constraints
+            try {
+              console.log("Trying basic media constraints...");
+              const basicStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true,
+              });
+
+              console.log("Basic stream obtained successfully");
+              localStream = basicStream;
+              addVideoStream(
+                "local",
+                basicStream,
+                currentUser.displayName || currentUser.email
+              );
+              showNotification("Connected with basic settings", "info");
+              return;
+            } catch (basicError) {
+              console.error("Basic constraints failed:", basicError);
+              showNotification(
+                "Unable to access media devices. Please check your camera and microphone.",
+                "error"
+              );
+              throw basicError;
+            }
+          }
+        }
+      }
+
+      function setupSocketListeners() {
+        socket.on("connect", () => {
+          console.log("Connected to server");
+        });
+
+        socket.on("disconnect", () => {
+          console.log("Disconnected from server");
+          showNotification("Connection lost. Trying to reconnect...", "error");
+        });
+
+        socket.on("user-joined", handleUserJoined);
+        socket.on("user-left", handleUserLeft);
+        socket.on("room-participants", handleRoomParticipants);
+        socket.on("offer", handleOffer);
+        socket.on("answer", handleAnswer);
+        socket.on("ice-candidate", handleIceCandidate);
+        socket.on("chat-message", handleChatMessage);
+        socket.on("chat-history", handleChatHistory);
+        socket.on("screen-share-start", handleScreenShareStart);
+        socket.on("screen-share-stop", handleScreenShareStop);
+
+        // Show debug button in development or if issues detected
+        if (
+          window.location.hostname === "localhost" ||
+          window.location.hostname === "127.0.0.1"
+        ) {
+          document.getElementById("debugBtn").style.display = "flex";
+        }
+
+        // Also show debug button if there are issues
+        setTimeout(() => {
+          const videos = document.querySelectorAll("video");
+          if (videos.length === 0 || videos.length === 1) {
+            document.getElementById("debugBtn").style.display = "flex";
+          }
+        }, 5000);
+      }
+
+      function addVideoStream(socketId, stream, userName) {
+        console.log(`Adding video stream for ${socketId}:`, stream);
+        console.log("Stream tracks:", stream.getTracks());
+
+        // Remove existing video if it exists
+        const existingVideo = document.getElementById(`video-${socketId}`);
+        if (existingVideo) {
+          existingVideo.remove();
+        }
+
+        const videoGrid = document.getElementById("videoGrid");
+        const videoItem = document.createElement("div");
+        videoItem.className = `video-item ${
+          socketId === "local" ? "local-video" : ""
+        }`;
+        videoItem.id = `video-${socketId}`;
+
+        const video = document.createElement("video");
+        video.srcObject = stream;
+        video.autoplay = true;
+        video.playsInline = true;
+        video.muted = socketId === "local";
+        video.style.width = "100%";
+        video.style.height = "100%";
+        video.style.objectFit = "cover";
+        video.style.backgroundColor = "#000";
+
+        // Enhanced video event listeners with better error handling
+        video.onloadedmetadata = () => {
+          console.log(`Video metadata loaded for ${socketId}`, {
+            videoWidth: video.videoWidth,
+            videoHeight: video.videoHeight,
+            readyState: video.readyState,
+          });
+
+          // Check if remote video appears to be black/empty
+          if (
+            socketId !== "local" &&
+            (video.videoWidth <= 2 || video.videoHeight <= 2)
+          ) {
+            console.warn(
+              `Remote video for ${socketId} appears to be black/empty (${video.videoWidth}x${video.videoHeight})`
+            );
+
+            // Wait a bit more to see if it loads properly
+            setTimeout(() => {
+              if (video.videoWidth <= 2 || video.videoHeight <= 2) {
+                console.log(`Attempting to fix black video for ${socketId}`);
+                showVideoError(videoItem, socketId);
+              }
+            }, 3000);
+          }
+
+          // Ensure video plays with multiple attempts
+          attemptVideoPlay(video, socketId, videoItem);
+        };
+
+        video.onloadeddata = () => {
+          console.log(`Video data loaded for ${socketId}`);
+
+          // Additional check for remote videos
+          if (
+            socketId !== "local" &&
+            (video.videoWidth <= 2 || video.videoHeight <= 2)
+          ) {
+            console.warn(
+              `Remote video data loaded but still black for ${socketId}`
+            );
+          }
+        };
+
+        video.oncanplay = () => {
+          console.log(`Video can play for ${socketId}`);
+        };
+
+        video.oncanplaythrough = () => {
+          console.log(`Video can play through for ${socketId}`);
+        };
+
+        video.onplay = () => {
+          console.log(`Video started playing for ${socketId}`);
+          // Remove any play buttons that might be showing
+          const playButton = videoItem.querySelector(".play-button");
+          if (playButton) {
+            playButton.remove();
+          }
+        };
+
+        video.onplaying = () => {
+          console.log(`Video is playing for ${socketId}`);
+
+          // Check if remote video is actually showing content
+          if (socketId !== "local") {
+            setTimeout(() => {
+              if (video.videoWidth <= 2 || video.videoHeight <= 2) {
+                console.warn(
+                  `Remote video playing but still black for ${socketId}`
+                );
+                showVideoError(videoItem, socketId);
+              }
+            }, 2000);
+          }
+        };
+
+        video.onwaiting = () => {
+          console.log(`Video waiting for data for ${socketId}`);
+        };
+
+        video.onerror = (e) => {
+          console.error(`Video error for ${socketId}:`, e);
+          showVideoError(videoItem, socketId);
+        };
+
+        video.onstalled = () => {
+          console.log(`Video stalled for ${socketId}`);
+          // Try to recover from stalled state
+          setTimeout(() => {
+            if (video.paused && video.readyState >= 2) {
+              attemptVideoPlay(video, socketId, videoItem);
+            }
+          }, 1000);
+        };
+
+        video.onabort = () => {
+          console.log(`Video aborted for ${socketId}`);
+        };
+
+        video.onemptied = () => {
+          console.log(`Video emptied for ${socketId}`);
+        };
+
+        const overlay = document.createElement("div");
+        overlay.className = "video-overlay";
+        overlay.textContent = socketId === "local" ? "You" : userName;
+
+        // Add audio level indicator for local video
+        if (socketId === "local") {
+          addAudioIndicator(videoItem, stream);
+          addCameraStatusIndicator(videoItem, stream);
+        }
+
+        videoItem.appendChild(video);
+        videoItem.appendChild(overlay);
+        videoGrid.appendChild(videoItem);
+
+        updateParticipantCount();
+
+        // Initial play attempt
+        setTimeout(() => {
+          attemptVideoPlay(video, socketId, videoItem);
+        }, 100);
+
+        // For remote videos, add additional monitoring
+        if (socketId !== "local") {
+          setTimeout(() => {
+            checkRemoteVideoHealth(video, socketId, videoItem);
+          }, 5000);
+        }
+      }
+
+      function checkRemoteVideoHealth(video, socketId, videoItem) {
+        if (video.videoWidth <= 2 || video.videoHeight <= 2) {
+          console.warn(
+            `Remote video health check failed for ${socketId} - video appears black`
+          );
+          showVideoError(videoItem, socketId);
+        } else {
+          console.log(
+            `Remote video health check passed for ${socketId} - video is displaying properly`
+          );
+        }
+      }
+
+      // Helper function to attempt video playback with multiple retries
+      function attemptVideoPlay(video, socketId, videoItem, attemptCount = 0) {
+        const maxAttempts = 5;
+
+        if (attemptCount >= maxAttempts) {
+          console.error(
+            `Failed to play video for ${socketId} after ${maxAttempts} attempts`
+          );
+          showPlayButton(videoItem, video, socketId);
+          return;
+        }
+
+        if (video.paused && video.readyState >= 2) {
+          console.log(
+            `Attempt ${attemptCount + 1} to play video for ${socketId}`
+          );
+
+          video.play().catch((e) => {
+            console.error(
+              `Error playing video for ${socketId} (attempt ${
+                attemptCount + 1
+              }):`,
+              e
+            );
+
+            if (e.name === "NotAllowedError") {
+              showPlayButton(videoItem, video, socketId);
+            } else {
+              // Retry after a delay
+              setTimeout(() => {
+                attemptVideoPlay(video, socketId, videoItem, attemptCount + 1);
+              }, 500 * (attemptCount + 1)); // Exponential backoff
+            }
+          });
+        }
+      }
+
+      function showPlayButton(videoItem, video, socketId) {
+        // Remove existing play button
+        const existingButton = videoItem.querySelector(".play-button");
+        if (existingButton) {
+          existingButton.remove();
+        }
+
+        const playButton = document.createElement("button");
+        playButton.className = "play-button";
+        playButton.innerHTML = '<i class="fas fa-play"></i> Click to play';
+        playButton.style.cssText = `
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          z-index: 10;
+          padding: 15px 25px;
+          background: rgba(59, 130, 246, 0.9);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          transition: all 0.2s ease;
+        `;
+
+        playButton.onmouseover = () => {
+          playButton.style.background = "rgba(37, 99, 235, 0.9)";
+          playButton.style.transform = "translate(-50%, -50%) scale(1.05)";
+        };
+
+        playButton.onmouseout = () => {
+          playButton.style.background = "rgba(59, 130, 246, 0.9)";
+          playButton.style.transform = "translate(-50%, -50%) scale(1)";
+        };
+
+        playButton.onclick = () => {
+          console.log(`Manual play attempt for ${socketId}`);
+          video
+            .play()
+            .then(() => {
+              playButton.remove();
+            })
+            .catch((e) => {
+              console.error(`Manual play failed for ${socketId}:`, e);
+              showVideoError(videoItem, socketId);
+            });
+        };
+
+        videoItem.appendChild(playButton);
+      }
+
+      function showVideoError(videoItem, socketId) {
+        // Remove existing error message
+        const existingError = videoItem.querySelector(".video-error");
+        if (existingError) {
+          existingError.remove();
+        }
+
+        const errorDiv = document.createElement("div");
+        errorDiv.className = "video-error";
+        errorDiv.innerHTML = `
+          <div style="text-align: center; padding: 20px;">
+            <i class="fas fa-exclamation-triangle" style="font-size: 24px; color: #ef4444; margin-bottom: 10px;"></i>
+            <div style="color: #ef4444; font-weight: 500; margin-bottom: 5px;">Video Error</div>
+            <div style="color: #94a3b8; font-size: 12px;">Unable to display video for ${socketId}</div>
+            <button onclick="retryVideo('${socketId}')" style="margin-top: 10px; padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+              Retry
+            </button>
+            <button onclick="handleBlackVideo('${socketId}')" style="margin-top: 10px; margin-left: 10px; padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+              Fix Black Video
+            </button>
+          </div>
+        `;
+        errorDiv.style.cssText = `
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 5;
+        `;
+
+        videoItem.appendChild(errorDiv);
+
+        // For remote videos that appear black, automatically try to fix (but only once)
+        if (socketId !== "local" && !blackVideoHandlers.has(socketId)) {
+          setTimeout(() => {
+            handleBlackVideo(socketId);
+          }, 2000);
+        }
+      }
+
+      // Global function for retry button
+      window.retryVideo = function (socketId) {
+        console.log(`Retrying video for ${socketId}`);
+
+        if (socketId === "local" && localStream) {
+          // For local video, try to restart the stream
+          restartLocalStream();
+        } else {
+          // For remote videos, try to refresh the connection
+          refreshRemoteVideo(socketId);
+
+          // Also try to restart the peer connection if needed
+          setTimeout(() => {
+            const video = document.querySelector(`#video-${socketId} video`);
+            if (video && (video.videoWidth <= 2 || video.videoHeight <= 2)) {
+              console.log(
+                `Video still black for ${socketId}, attempting full reconnection`
+              );
+              attemptReconnection(socketId);
+            }
+          }, 3000);
+        }
+      };
+
+      // Function to handle black video specifically
+      window.handleBlackVideo = function (socketId) {
+        console.log(`Handling black video for ${socketId}`);
+
+        // Prevent multiple simultaneous attempts
+        if (blackVideoHandlers.has(socketId)) {
+          console.log(`Black video handler already running for ${socketId}`);
+          return;
+        }
+
+        blackVideoHandlers.set(socketId, true);
+
+        const videoItem = document.getElementById(`video-${socketId}`);
+        if (!videoItem) {
+          blackVideoHandlers.delete(socketId);
+          return;
+        }
+
+        const video = videoItem.querySelector("video");
+        if (!video) {
+          blackVideoHandlers.delete(socketId);
+          return;
+        }
+
+        // Check if the peer connection is actually receiving video data
+        const peerConnection = peerConnections.get(socketId);
+        if (peerConnection) {
+          const receivers = peerConnection.getReceivers();
+          const videoReceiver = receivers.find(
+            (receiver) => receiver.track && receiver.track.kind === "video"
+          );
+
+          if (videoReceiver && videoReceiver.track) {
+            console.log(`Video track status for ${socketId}:`, {
+              enabled: videoReceiver.track.enabled,
+              readyState: videoReceiver.track.readyState,
+              muted: videoReceiver.track.muted,
+            });
+
+            // If track is muted or not live, this might be the issue
+            if (
+              videoReceiver.track.muted ||
+              videoReceiver.track.readyState !== "live"
+            ) {
+              console.log(
+                `Video track for ${socketId} is muted or not live, this might be causing the black video`
+              );
+            }
+          } else {
+            console.log(`No video receiver found for ${socketId}`);
+          }
+        }
+
+        // Try a different approach - create a new video element
+        try {
+          const newVideo = document.createElement("video");
+          newVideo.autoplay = true;
+          newVideo.playsInline = true;
+          newVideo.style.width = "100%";
+          newVideo.style.height = "100%";
+          newVideo.style.objectFit = "cover";
+          newVideo.style.backgroundColor = "#000";
+
+          // Replace the old video element
+          const oldVideo = videoItem.querySelector("video");
+          if (oldVideo && oldVideo.srcObject) {
+            newVideo.srcObject = oldVideo.srcObject;
+            oldVideo.remove();
+            videoItem.insertBefore(newVideo, videoItem.firstChild);
+
+            console.log(`Replaced video element for ${socketId}`);
+          }
+
+          // Clear the handler after a delay
+          setTimeout(() => {
+            blackVideoHandlers.delete(socketId);
+          }, 3000);
+        } catch (error) {
+          console.error(
+            `Error replacing video element for ${socketId}:`,
+            error
+          );
+          blackVideoHandlers.delete(socketId);
+        }
+
+        // If that doesn't work, try reconnection (but limit attempts)
+        const attempts = recoveryAttempts.get(socketId) || 0;
+        if (attempts < 2) {
+          // Reduced max attempts
+          setTimeout(() => {
+            const currentVideo = videoItem.querySelector("video");
+            if (
+              currentVideo &&
+              (currentVideo.videoWidth <= 2 || currentVideo.videoHeight <= 2)
+            ) {
+              console.log(
+                `Black video persists for ${socketId}, attempting reconnection (attempt ${
+                  attempts + 1
+                }/2)`
+              );
+              recoveryAttempts.set(socketId, attempts + 1);
+              attemptReconnection(socketId);
+            } else {
+              // Video is working, reset attempts
+              recoveryAttempts.delete(socketId);
+            }
+          }, 8000); // Increased delay
+        } else {
+          console.log(
+            `Max recovery attempts reached for ${socketId}, giving up`
+          );
+          showNotification(
+            `Unable to fix video for remote user. The video may be disabled on their end.`,
+            "error"
+          );
+          recoveryAttempts.delete(socketId);
+        }
+      };
+
+      async function restartLocalStream() {
+        try {
+          console.log("Restarting local stream...");
+
+          // Stop current stream
+          if (localStream) {
+            localStream.getTracks().forEach((track) => track.stop());
+          }
+
+          // Get new stream
+          await getUserMedia();
+
+          // Update all peer connections with new stream
+          peerConnections.forEach((pc, socketId) => {
+            const senders = pc.getSenders();
+            senders.forEach((sender) => {
+              if (sender.track && localStream) {
+                const newTrack = localStream
+                  .getTracks()
+                  .find((track) => track.kind === sender.track.kind);
+                if (newTrack) {
+                  sender.replaceTrack(newTrack);
+                }
+              }
+            });
+          });
+
+          showNotification("Local stream restarted successfully", "success");
+        } catch (error) {
+          console.error("Failed to restart local stream:", error);
+          showNotification("Failed to restart local stream", "error");
+        }
+      }
+
+      function addAudioIndicator(videoItem, stream) {
+        const audioIndicator = document.createElement("div");
+        audioIndicator.className = "audio-indicator";
+        audioIndicator.innerHTML = '<i class="fas fa-microphone"></i>';
+        videoItem.appendChild(audioIndicator);
+
+        try {
+          const audioContext = new (window.AudioContext ||
+            window.webkitAudioContext)();
+          const analyser = audioContext.createAnalyser();
+          const microphone = audioContext.createMediaStreamSource(stream);
+          microphone.connect(analyser);
+
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+          function updateAudioLevel() {
+            analyser.getByteFrequencyData(dataArray);
+            const average =
+              dataArray.reduce((a, b) => a + b) / dataArray.length;
+
+            if (average > 30) {
+              audioIndicator.classList.add("speaking");
+            } else {
+              audioIndicator.classList.remove("speaking");
+            }
+
+            requestAnimationFrame(updateAudioLevel);
+          }
+
+          updateAudioLevel();
+        } catch (error) {
+          console.error("Error setting up audio level monitoring:", error);
+        }
+      }
+
+      function addCameraStatusIndicator(videoItem, stream) {
+        const cameraIndicator = document.createElement("div");
+        cameraIndicator.className = "camera-status";
+        cameraIndicator.innerHTML = '<i class="fas fa-video"></i>';
+        videoItem.appendChild(cameraIndicator);
+
+        // Check camera status
+        const videoTracks = stream.getVideoTracks();
+        if (videoTracks.length > 0) {
+          const videoTrack = videoTracks[0];
+
+          if (videoTrack.enabled && videoTrack.readyState === "live") {
+            cameraIndicator.classList.add("working");
+            cameraIndicator.innerHTML = '<i class="fas fa-video"></i>';
+          } else {
+            cameraIndicator.classList.add("error");
+            cameraIndicator.innerHTML = '<i class="fas fa-video-slash"></i>';
+          }
+
+          // Monitor track state changes
+          videoTrack.onended = () => {
+            cameraIndicator.classList.remove("working");
+            cameraIndicator.classList.add("error");
+            cameraIndicator.innerHTML = '<i class="fas fa-video-slash"></i>';
+          };
+
+          videoTrack.onmute = () => {
+            cameraIndicator.classList.remove("working");
+            cameraIndicator.classList.add("error");
+            cameraIndicator.innerHTML = '<i class="fas fa-video-slash"></i>';
+          };
+
+          videoTrack.onunmute = () => {
+            cameraIndicator.classList.remove("error");
+            cameraIndicator.classList.add("working");
+            cameraIndicator.innerHTML = '<i class="fas fa-video"></i>';
+          };
+        } else {
+          cameraIndicator.classList.add("error");
+          cameraIndicator.innerHTML = '<i class="fas fa-video-slash"></i>';
+        }
+      }
+
+      function removeVideoStream(socketId) {
+        const videoItem = document.getElementById(`video-${socketId}`);
+        if (videoItem) {
+          const video = videoItem.querySelector("video");
+
+          // Only remove if it's not a local video or if we're sure it should be removed
+          if (socketId === "local") {
+            console.log("Not removing local video stream");
+            return;
+          }
+
+          if (video && video.srcObject) {
+            video.srcObject.getTracks().forEach((track) => track.stop());
+          }
+          videoItem.remove();
+          updateParticipantCount();
+          console.log(`Removed video stream for ${socketId}`);
+        }
+      }
+
+      function updateParticipantCount() {
+        const videoItems = document.querySelectorAll(".video-item");
+        document.getElementById("participantCount").textContent =
+          videoItems.length;
+      }
+
+      function createPeerConnection(socketId) {
+        // Close existing connection if it exists
+        if (peerConnections.has(socketId)) {
+          const existingPc = peerConnections.get(socketId);
+          existingPc.close();
+          peerConnections.delete(socketId);
+        }
+
+        const peerConnection = new RTCPeerConnection(rtcConfig);
+        peerConnections.set(socketId, peerConnection);
+
+        // Add local stream tracks
+        if (localStream) {
+          const tracks = localStream.getTracks();
+          console.log(
+            `Adding ${tracks.length} tracks to peer connection for ${socketId}:`,
+            tracks
+          );
+
+          tracks.forEach((track) => {
+            console.log(
+              `Adding ${track.kind} track to peer connection for ${socketId}`
+            );
+            const sender = peerConnection.addTrack(track, localStream);
+            console.log(`Track sender created:`, sender);
+
+            // Monitor track state
+            track.onended = () => {
+              console.log(`${track.kind} track ended for ${socketId}`);
+            };
+            track.onmute = () => {
+              console.log(`${track.kind} track muted for ${socketId}`);
+            };
+            track.onunmute = () => {
+              console.log(`${track.kind} track unmuted for ${socketId}`);
+            };
+          });
+        } else {
+          console.error("No local stream available for peer connection");
+        }
+
+        // Handle ICE candidates
+        peerConnection.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit("ice-candidate", {
+              target: socketId,
+              candidate: event.candidate,
+            });
+          }
+        };
+
+        // Handle ICE connection state changes
+        peerConnection.oniceconnectionstatechange = () => {
+          console.log(
+            `ICE connection state with ${socketId}:`,
+            peerConnection.iceConnectionState
+          );
+
+          if (peerConnection.iceConnectionState === "failed") {
+            console.log(
+              `ICE connection failed with ${socketId}, attempting to restart`
+            );
+            try {
+              peerConnection.restartIce();
+            } catch (error) {
+              console.error("Error restarting ICE:", error);
+            }
+          } else if (peerConnection.iceConnectionState === "disconnected") {
+            console.log(
+              `ICE connection disconnected with ${socketId}, waiting for potential recovery`
+            );
+            // Don't immediately restart ICE for disconnected state
+            // Let it try to recover naturally first
+          }
+        };
+
+        // Handle connection state changes
+        peerConnection.onconnectionstatechange = () => {
+          console.log(
+            `Connection state with ${socketId}:`,
+            peerConnection.connectionState
+          );
+
+          if (peerConnection.connectionState === "failed") {
+            console.log(
+              `Connection failed with ${socketId}, attempting reconnection...`
+            );
+
+            // Try to restart ICE first
+            try {
+              peerConnection.restartIce();
+            } catch (error) {
+              console.error("Error restarting ICE:", error);
+            }
+
+            // Wait a bit then try full reconnection
+            setTimeout(() => {
+              if (peerConnection.connectionState === "failed") {
+                console.log(
+                  `ICE restart didn't work for ${socketId}, attempting full reconnection`
+                );
+                attemptReconnection(socketId);
+              }
+            }, 3000);
+
+            // Final cleanup if reconnection fails
+            setTimeout(() => {
+              if (peerConnection.connectionState === "failed") {
+                console.log(
+                  `All reconnection attempts failed for ${socketId}, cleaning up`
+                );
+                peerConnections.delete(socketId);
+                removeVideoStream(socketId);
+              }
+            }, 15000); // Wait 15 seconds before giving up
+          } else if (peerConnection.connectionState === "disconnected") {
+            console.log(
+              `Connection disconnected with ${socketId}, waiting for potential reconnection...`
+            );
+
+            // Wait longer for disconnected state as it might reconnect naturally
+            setTimeout(() => {
+              if (
+                peerConnection.connectionState === "disconnected" ||
+                peerConnection.connectionState === "failed"
+              ) {
+                console.log(
+                  `No natural reconnection for ${socketId}, attempting manual reconnection`
+                );
+                attemptReconnection(socketId);
+              }
+            }, 8000); // Wait 8 seconds for natural reconnection
+
+            // Final cleanup if reconnection fails
+            setTimeout(() => {
+              if (
+                peerConnection.connectionState === "disconnected" ||
+                peerConnection.connectionState === "failed"
+              ) {
+                console.log(
+                  `All reconnection attempts failed for ${socketId}, cleaning up`
+                );
+                peerConnections.delete(socketId);
+                removeVideoStream(socketId);
+              }
+            }, 20000); // Wait 20 seconds before giving up
+          }
+        };
+
+        // Handle incoming streams
+        peerConnection.ontrack = (event) => {
+          console.log(`Received track from ${socketId}:`, event);
+          console.log("Track event streams:", event.streams);
+          console.log("Track event track:", event.track);
+
+          let stream = event.streams[0];
+          if (!stream) {
+            console.warn(
+              `No stream found in track event for ${socketId}, creating from track`
+            );
+            stream = new MediaStream([event.track]);
+          }
+
+          console.log(`Adding remote stream for ${socketId}:`, stream);
+          console.log("Remote stream tracks:", stream.getTracks());
+
+          // Verify the stream has tracks
+          const tracks = stream.getTracks();
+          if (tracks.length === 0) {
+            console.error(`No tracks in stream for ${socketId}`);
+            return;
+          }
+
+          // Check if video track exists and is valid
+          const videoTrack = tracks.find((track) => track.kind === "video");
+          if (!videoTrack) {
+            console.warn(`No video track in stream for ${socketId}`);
+          } else {
+            console.log(`Video track found for ${socketId}:`, {
+              enabled: videoTrack.enabled,
+              readyState: videoTrack.readyState,
+              settings: videoTrack.getSettings(),
+            });
+
+            // Monitor video track state changes
+            videoTrack.onended = () => {
+              console.log(`Video track ended for ${socketId}`);
+              showVideoError(
+                document.getElementById(`video-${socketId}`),
+                socketId
+              );
+            };
+
+            videoTrack.onmute = () => {
+              console.log(`Video track muted for ${socketId}`);
+            };
+
+            videoTrack.onunmute = () => {
+              console.log(`Video track unmuted for ${socketId}`);
+            };
+          }
+
+          // Check if audio track exists
+          const audioTrack = tracks.find((track) => track.kind === "audio");
+          if (audioTrack) {
+            console.log(`Audio track found for ${socketId}:`, {
+              enabled: audioTrack.enabled,
+              readyState: audioTrack.readyState,
+            });
+          }
+
+          addVideoStream(socketId, stream, "Remote User");
+        };
+
+        return peerConnection;
+      }
+
+      // Socket event handlers
+      function handleUserJoined(data) {
+        console.log("User joined:", data);
+        showNotification(`${data.userName} joined the meeting`, "info");
+
+        const peerConnection = createPeerConnection(data.socketId);
+
+        // Create and send offer
+        setTimeout(() => {
+          peerConnection
+            .createOffer()
+            .then((offer) => peerConnection.setLocalDescription(offer))
+            .then(() => {
+              socket.emit("offer", {
+                target: data.socketId,
+                offer: peerConnection.localDescription,
+              });
+            })
+            .catch((error) => {
+              console.error("Error creating offer:", error);
+              peerConnections.delete(data.socketId);
+            });
+        }, 100);
+      }
+
+      function handleUserLeft(data) {
+        console.log("User left:", data);
+        showNotification(`${data.userName} left the meeting`, "info");
+
+        if (peerConnections.has(data.socketId)) {
+          const pc = peerConnections.get(data.socketId);
+          pc.close();
+          peerConnections.delete(data.socketId);
+        }
+
+        // Clean up recovery tracking
+        recoveryAttempts.delete(data.socketId);
+        blackVideoHandlers.delete(data.socketId);
+
+        removeVideoStream(data.socketId);
+      }
+
+      function handleRoomParticipants(participants) {
+        participants.forEach((participant) => {
+          if (participant.socketId !== socket.id) {
+            const peerConnection = createPeerConnection(participant.socketId);
+
+            setTimeout(() => {
+              peerConnection
+                .createOffer()
+                .then((offer) => peerConnection.setLocalDescription(offer))
+                .then(() => {
+                  socket.emit("offer", {
+                    target: participant.socketId,
+                    offer: peerConnection.localDescription,
+                  });
+                })
+                .catch((error) => {
+                  console.error(
+                    "Error creating offer for existing participant:",
+                    error
+                  );
+                  peerConnections.delete(participant.socketId);
+                });
+            }, 100);
+          }
+        });
+      }
+
+      function handleOffer(data) {
+        const peerConnection = createPeerConnection(data.from);
+
+        peerConnection
+          .setRemoteDescription(new RTCSessionDescription(data.offer))
+          .then(() => peerConnection.createAnswer())
+          .then((answer) => peerConnection.setLocalDescription(answer))
+          .then(() => {
+            socket.emit("answer", {
+              target: data.from,
+              answer: peerConnection.localDescription,
+            });
+          })
+          .catch((error) => {
+            console.error("Error handling offer:", error);
+            peerConnections.delete(data.from);
+          });
+      }
+
+      function handleAnswer(data) {
+        const peerConnection = peerConnections.get(data.from);
+        if (
+          peerConnection &&
+          peerConnection.signalingState === "have-local-offer"
+        ) {
+          peerConnection
+            .setRemoteDescription(new RTCSessionDescription(data.answer))
+            .catch((error) => {
+              console.error("Error setting remote answer:", error);
+              peerConnections.delete(data.from);
+            });
+        } else {
+          console.warn(
+            `Cannot set remote answer: peer connection state is ${peerConnection?.signalingState}`
+          );
+        }
+      }
+
+      function handleIceCandidate(data) {
+        const peerConnection = peerConnections.get(data.from);
+        if (peerConnection && peerConnection.remoteDescription) {
+          peerConnection
+            .addIceCandidate(new RTCIceCandidate(data.candidate))
+            .catch((error) => {
+              console.error("Error adding ICE candidate:", error);
+            });
+        } else {
+          console.log(
+            `Storing ICE candidate for ${data.from}, waiting for remote description`
+          );
+          // Store candidate to add later
+          if (!peerConnection) {
+            console.warn(
+              `No peer connection found for ${data.from}, cannot store ICE candidate`
+            );
+            return;
+          }
+
+          if (!peerConnection.pendingCandidates) {
+            peerConnection.pendingCandidates = [];
+          }
+          peerConnection.pendingCandidates.push(data.candidate);
+        }
+      }
+
+      // Control button handlers
+      document.getElementById("muteBtn").addEventListener("click", toggleMute);
+      document
+        .getElementById("videoBtn")
+        .addEventListener("click", toggleVideo);
+      document
+        .getElementById("screenShareBtn")
+        .addEventListener("click", toggleScreenShare);
+      document
+        .getElementById("shareRoomBtn")
+        .addEventListener("click", shareRoomId);
+      document.getElementById("chatBtn").addEventListener("click", toggleChat);
+      document.getElementById("chatBtn2").addEventListener("click", toggleChat);
+      document
+        .getElementById("closeChatBtn")
+        .addEventListener("click", toggleChat);
+      document
+        .getElementById("leaveBtn")
+        .addEventListener("click", leaveMeeting);
+      document
+        .getElementById("debugBtn")
+        .addEventListener("click", debugVideoStreams);
+      document
+        .getElementById("cameraTroubleshootBtn")
+        .addEventListener("click", testCameraAccess);
+
+      function toggleMute() {
+        if (localStream) {
+          const audioTrack = localStream.getAudioTracks()[0];
+          if (audioTrack) {
+            audioTrack.enabled = !audioTrack.enabled;
+            isMuted = !audioTrack.enabled;
+
+            const btn = document.getElementById("muteBtn");
+            if (isMuted) {
+              btn.classList.add("muted");
+              btn.innerHTML = '<i class="fas fa-microphone-slash"></i>';
+            } else {
+              btn.classList.remove("muted");
+              btn.innerHTML = '<i class="fas fa-microphone"></i>';
+            }
+          }
+        }
+      }
+
+      function toggleVideo() {
+        if (localStream) {
+          const videoTrack = localStream.getVideoTracks()[0];
+          if (videoTrack) {
+            videoTrack.enabled = !videoTrack.enabled;
+            isVideoOff = !videoTrack.enabled;
+
+            const btn = document.getElementById("videoBtn");
+            if (isVideoOff) {
+              btn.classList.add("active");
+              btn.innerHTML = '<i class="fas fa-video-slash"></i>';
+            } else {
+              btn.classList.remove("active");
+              btn.innerHTML = '<i class="fas fa-video"></i>';
+            }
+          }
+        }
+      }
+
+      function toggleScreenShare() {
+        if (!isScreenSharing) {
+          navigator.mediaDevices
+            .getDisplayMedia({ video: true })
+            .then((stream) => {
+              screenStream = stream;
+              const videoTrack = stream.getVideoTracks()[0];
+
+              // Replace video track in all peer connections
+              peerConnections.forEach((pc) => {
+                const sender = pc
+                  .getSenders()
+                  .find((s) => s.track && s.track.kind === "video");
+                if (sender) {
+                  sender.replaceTrack(videoTrack);
+                }
+              });
+
+              // Replace local video track
+              const localVideoTrack = localStream.getVideoTracks()[0];
+              if (localVideoTrack) {
+                localVideoTrack.stop();
+                localStream.removeTrack(localVideoTrack);
+                localStream.addTrack(videoTrack);
+              }
+
+              isScreenSharing = true;
+              const btn = document.getElementById("screenShareBtn");
+              btn.classList.add("active");
+              btn.innerHTML = '<i class="fas fa-stop"></i>';
+
+              // Notify others
+              socket.emit("screen-share-start", {
+                roomId: roomId,
+                userName: currentUser.displayName || currentUser.email,
+              });
+
+              // Handle screen share stop
+              videoTrack.onended = () => {
+                stopScreenShare();
+              };
+            })
+            .catch((err) => {
+              console.error("Error sharing screen:", err);
+              showNotification("Unable to share screen", "error");
+            });
+        } else {
+          stopScreenShare();
+        }
+      }
+
+      function stopScreenShare() {
+        if (screenStream) {
+          screenStream.getTracks().forEach((track) => track.stop());
+          screenStream = null;
+        }
+
+        // Restore camera video
+        navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
+          const videoTrack = stream.getVideoTracks()[0];
+
+          // Replace video track in all peer connections
+          peerConnections.forEach((pc) => {
+            const sender = pc
+              .getSenders()
+              .find((s) => s.track && s.track.kind === "video");
+            if (sender) {
+              sender.replaceTrack(videoTrack);
+            }
+          });
+
+          // Replace local video track
+          const localVideoTrack = localStream.getVideoTracks()[0];
+          if (localVideoTrack) {
+            localVideoTrack.stop();
+            localStream.removeTrack(localVideoTrack);
+            localStream.addTrack(videoTrack);
+          }
+        });
+
+        isScreenSharing = false;
+        const btn = document.getElementById("screenShareBtn");
+        btn.classList.remove("active");
+        btn.innerHTML = '<i class="fas fa-desktop"></i>';
+
+        // Notify others
+        socket.emit("screen-share-stop", { roomId: roomId });
+      }
+
+      function shareRoomId() {
+        const meetingTitle =
+          document.getElementById("meetingTitle").textContent;
+        const shareUrl = `${window.location.origin}/dashboard?join=${roomId}`;
+
+        if (navigator.share) {
+          navigator.share({
+            title: "Join my meeting",
+            text: `Join my meeting: ${meetingTitle}`,
+            url: shareUrl,
+          });
+        } else {
+          navigator.clipboard
+            .writeText(shareUrl)
+            .then(() => {
+              showNotification("Meeting link copied to clipboard!", "success");
+            })
+            .catch(() => {
+              const textArea = document.createElement("textarea");
+              textArea.value = shareUrl;
+              document.body.appendChild(textArea);
+              textArea.select();
+              document.execCommand("copy");
+              document.body.removeChild(textArea);
+              showNotification("Meeting link copied to clipboard!", "success");
+            });
+        }
+      }
+
+      function toggleChat() {
+        const chatPanel = document.getElementById("chatPanel");
+        chatPanel.classList.toggle("open");
+      }
+
+      function leaveMeeting() {
+        // Stop camera monitoring
+        if (cameraStatusInterval) {
+          clearInterval(cameraStatusInterval);
+        }
+
+        // Stop all media tracks
+        if (localStream) {
+          localStream.getTracks().forEach((track) => track.stop());
+        }
+        if (screenStream) {
+          screenStream.getTracks().forEach((track) => track.stop());
+        }
+
+        // Close all peer connections
+        peerConnections.forEach((pc) => pc.close());
+        peerConnections.clear();
+
+        // Disconnect socket
+        if (socket) {
+          socket.disconnect();
+        }
+
+        // Redirect to dashboard
+        window.location.href = "/dashboard";
+      }
+
+      // Chat functionality
+      document
+        .getElementById("chatForm")
+        .addEventListener("submit", sendMessage);
+
+      function sendMessage(event) {
+        event.preventDefault();
+        const input = document.getElementById("chatInput");
+        const message = input.value.trim();
+
+        if (message && socket) {
+          socket.emit("chat-message", {
+            roomId: roomId,
+            message: message,
+            userName: currentUser.displayName || currentUser.email,
+            userId: currentUser.uid,
+          });
+          input.value = "";
+        }
+      }
+
+      function handleChatMessage(message) {
+        const chatMessages = document.getElementById("chatMessages");
+        const messageElement = document.createElement("div");
+        messageElement.className = "message";
+
+        const time = new Date(message.timestamp).toLocaleTimeString();
+
+        messageElement.innerHTML = `
+          <div class="message-header">
+            <span class="message-author">${message.userName}</span>
+            <span class="message-time">${time}</span>
+          </div>
+          <div class="message-content">${message.message}</div>
+        `;
+
+        chatMessages.appendChild(messageElement);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      function handleChatHistory(messages) {
+        const chatMessages = document.getElementById("chatMessages");
+        chatMessages.innerHTML = "";
+        messages.forEach((message) => {
+          handleChatMessage(message);
+        });
+      }
+
+      function handleScreenShareStart(data) {
+        showNotification(`${data.userName} started sharing screen`, "info");
+      }
+
+      function handleScreenShareStop(data) {
+        showNotification("Screen sharing stopped", "info");
+      }
+
+      // Utility functions
+      function showNotification(message, type = "info") {
+        const container = document.getElementById("notificationContainer");
+        if (!container) return;
+
+        const notification = document.createElement("div");
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+
+        container.appendChild(notification);
+
+        setTimeout(() => notification.classList.add("show"), 100);
+
+        setTimeout(() => {
+          notification.classList.remove("show");
+          setTimeout(() => {
+            if (container.contains(notification)) {
+              container.removeChild(notification);
+            }
+          }, 300);
+        }, 3000);
+      }
+
+      function hideLoadingOverlay() {
+        const overlay = document.getElementById("loadingOverlay");
+        if (overlay) {
+          overlay.style.display = "none";
+        }
+      }
+
+      // Debug function to check video streams
+      function debugVideoStreams() {
+        console.log("=== VIDEO STREAM DEBUG ===");
+
+        // Check local stream
+        if (localStream) {
+          console.log("Local stream:", localStream);
+          console.log("Local stream tracks:", localStream.getTracks());
+          localStream.getTracks().forEach((track, index) => {
+            console.log(`Local track ${index}:`, {
+              kind: track.kind,
+              enabled: track.enabled,
+              readyState: track.readyState,
+              settings: track.getSettings(),
+            });
+          });
+        } else {
+          console.log("No local stream");
+        }
+
+        // Check video elements
+        const videos = document.querySelectorAll("video");
+        console.log(`Found ${videos.length} video elements`);
+        videos.forEach((video, index) => {
+          console.log(`Video ${index}:`, {
+            srcObject: video.srcObject,
+            paused: video.paused,
+            readyState: video.readyState,
+            networkState: video.networkState,
+            currentTime: video.currentTime,
+            duration: video.duration,
+            videoWidth: video.videoWidth,
+            videoHeight: video.videoHeight,
+            muted: video.muted,
+            autoplay: video.autoplay,
+          });
+        });
+
+        // Check peer connections
+        console.log(`Active peer connections: ${peerConnections.size}`);
+        peerConnections.forEach((pc, socketId) => {
+          console.log(`Peer connection ${socketId}:`, {
+            connectionState: pc.connectionState,
+            iceConnectionState: pc.iceConnectionState,
+            signalingState: pc.signalingState,
+            remoteDescription: pc.remoteDescription,
+            localDescription: pc.localDescription,
+          });
+        });
+
+        // Test camera access
+        testCameraAccess();
+
+        // Monitor video streams
+        monitorVideoStreams();
+
+        console.log("=== END VIDEO STREAM DEBUG ===");
+      }
+
+      // Test camera access function
+      async function testCameraAccess() {
+        try {
+          console.log("Testing camera access...");
+
+          // First check if we have permission
+          const permissions = await navigator.permissions.query({
+            name: "camera",
+          });
+          console.log("Camera permission state:", permissions.state);
+
+          if (permissions.state === "denied") {
+            showNotification(
+              "Camera access is denied. Please enable it in your browser settings.",
+              "error"
+            );
+            return;
+          }
+
+          // List available devices
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = devices.filter(
+            (device) => device.kind === "videoinput"
+          );
+          const audioDevices = devices.filter(
+            (device) => device.kind === "audioinput"
+          );
+
+          console.log("Available video devices:", videoDevices);
+          console.log("Available audio devices:", audioDevices);
+
+          if (videoDevices.length === 0) {
+            showNotification(
+              "No camera devices found. Please connect a camera and try again.",
+              "error"
+            );
+            return;
+          }
+
+          // Test with first available camera
+          const testStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              deviceId: videoDevices[0].deviceId
+                ? { exact: videoDevices[0].deviceId }
+                : undefined,
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+            },
+            audio: false,
+          });
+
+          console.log("Camera access successful:", testStream);
+          console.log("Test stream tracks:", testStream.getTracks());
+
+          // Stop the test stream
+          testStream.getTracks().forEach((track) => track.stop());
+
+          showNotification(
+            `Camera access test successful. Found ${videoDevices.length} camera(s) and ${audioDevices.length} microphone(s).`,
+            "success"
+          );
+
+          // Show device selection if multiple devices
+          if (videoDevices.length > 1 || audioDevices.length > 1) {
+            showDeviceSelection(videoDevices, audioDevices);
+          }
+        } catch (error) {
+          console.error("Camera access test failed:", error);
+          showNotification(
+            "Camera access test failed: " + error.message,
+            "error"
+          );
+
+          // Provide specific guidance based on error
+          if (error.name === "NotAllowedError") {
+            showNotification(
+              "Please allow camera access in your browser and refresh the page.",
+              "error"
+            );
+          } else if (error.name === "NotFoundError") {
+            showNotification(
+              "No camera found. Please connect a camera and try again.",
+              "error"
+            );
+          } else if (error.name === "NotReadableError") {
+            showNotification(
+              "Camera is in use by another application. Please close other apps using the camera.",
+              "error"
+            );
+          }
+        }
+      }
+
+      function showDeviceSelection(videoDevices, audioDevices) {
+        const modal = document.createElement("div");
+        modal.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 10000;
+        `;
+
+        const content = document.createElement("div");
+        content.style.cssText = `
+          background: #1e293b;
+          border-radius: 12px;
+          padding: 24px;
+          max-width: 500px;
+          width: 90%;
+          max-height: 80vh;
+          overflow-y: auto;
+          border: 1px solid #334155;
+        `;
+
+        content.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; color: #f8fafc;">Select Devices</h3>
+            <button onclick="this.closest('.device-modal').remove()" style="background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer;">×</button>
+          </div>
+          
+          ${
+            videoDevices.length > 1
+              ? `
+            <div style="margin-bottom: 20px;">
+              <label style="display: block; margin-bottom: 8px; color: #e2e8f0; font-weight: 500;">Camera:</label>
+              <select id="cameraSelect" style="width: 100%; padding: 8px 12px; background: #334155; border: 1px solid #475569; border-radius: 6px; color: #e2e8f0;">
+                ${videoDevices
+                  .map(
+                    (device) =>
+                      `<option value="${device.deviceId}">${
+                        device.label ||
+                        `Camera ${device.deviceId.slice(0, 8)}...`
+                      }</option>`
+                  )
+                  .join("")}
+              </select>
+            </div>
+          `
+              : ""
+          }
+          
+          ${
+            audioDevices.length > 1
+              ? `
+            <div style="margin-bottom: 20px;">
+              <label style="display: block; margin-bottom: 8px; color: #e2e8f0; font-weight: 500;">Microphone:</label>
+              <select id="audioSelect" style="width: 100%; padding: 8px 12px; background: #334155; border: 1px solid #475569; border-radius: 6px; color: #e2e8f0;">
+                ${audioDevices
+                  .map(
+                    (device) =>
+                      `<option value="${device.deviceId}">${
+                        device.label ||
+                        `Microphone ${device.deviceId.slice(0, 8)}...`
+                      }</option>`
+                  )
+                  .join("")}
+              </select>
+            </div>
+          `
+              : ""
+          }
+          
+          <div style="display: flex; gap: 12px; justify-content: flex-end;">
+            <button onclick="this.closest('.device-modal').remove()" style="padding: 8px 16px; background: #475569; color: white; border: none; border-radius: 6px; cursor: pointer;">Cancel</button>
+            <button onclick="applyDeviceSelection()" style="padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;">Apply</button>
+          </div>
+        `;
+
+        modal.className = "device-modal";
+        modal.appendChild(content);
+        document.body.appendChild(modal);
+      }
+
+      // Global function for device selection
+      window.applyDeviceSelection = async function () {
+        const modal = document.querySelector(".device-modal");
+        const cameraSelect = document.getElementById("cameraSelect");
+        const audioSelect = document.getElementById("audioSelect");
+
+        try {
+          const constraints = {
+            video: cameraSelect
+              ? {
+                  deviceId: cameraSelect.value
+                    ? { exact: cameraSelect.value }
+                    : undefined,
+                  width: { ideal: 1280, min: 640 },
+                  height: { ideal: 720, min: 480 },
+                  frameRate: { ideal: 30, min: 15 },
+                }
+              : true,
+            audio: audioSelect
+              ? {
+                  deviceId: audioSelect.value
+                    ? { exact: audioSelect.value }
+                    : undefined,
+                  echoCancellation: true,
+                  noiseSuppression: true,
+                  autoGainControl: true,
+                }
+              : true,
+          };
+
+          // Stop current stream
+          if (localStream) {
+            localStream.getTracks().forEach((track) => track.stop());
+          }
+
+          // Get new stream with selected devices
+          const newStream = await navigator.mediaDevices.getUserMedia(
+            constraints
+          );
+          localStream = newStream;
+
+          // Update local video
+          const localVideo = document.querySelector("#video-local video");
+          if (localVideo) {
+            localVideo.srcObject = newStream;
+          }
+
+          // Update peer connections
+          peerConnections.forEach((pc, socketId) => {
+            const senders = pc.getSenders();
+            senders.forEach((sender) => {
+              if (sender.track && newStream) {
+                const newTrack = newStream
+                  .getTracks()
+                  .find((track) => track.kind === sender.track.kind);
+                if (newTrack) {
+                  sender.replaceTrack(newTrack);
+                }
+              }
+            });
+          });
+
+          showNotification("Device selection applied successfully", "success");
+          modal.remove();
+        } catch (error) {
+          console.error("Failed to apply device selection:", error);
+          showNotification(
+            "Failed to apply device selection: " + error.message,
+            "error"
+          );
+        }
+      };
+
+      // Monitor and fix video streams
+      function monitorVideoStreams() {
+        console.log("=== MONITORING VIDEO STREAMS ===");
+
+        const videos = document.querySelectorAll("video");
+        videos.forEach((video, index) => {
+          const videoItem = video.closest(".video-item");
+          const socketId = videoItem
+            ? videoItem.id.replace("video-", "")
+            : `video-${index}`;
+
+          console.log(`Monitoring video ${index} (${socketId}):`, {
+            srcObject: video.srcObject,
+            paused: video.paused,
+            readyState: video.readyState,
+            networkState: video.networkState,
+            currentTime: video.currentTime,
+            duration: video.duration,
+            videoWidth: video.videoWidth,
+            videoHeight: video.videoHeight,
+            muted: video.muted,
+            autoplay: video.autoplay,
+            error: video.error,
+          });
+
+          // Check if video is black (no data) - only for videos that have been loaded
+          if (
+            video.videoWidth === 0 &&
+            video.videoHeight === 0 &&
+            video.readyState >= 2
+          ) {
+            console.warn(
+              `Video ${socketId} appears to be black - attempting to fix`
+            );
+
+            // Only attempt fixes if we haven't tried recently
+            const lastFixAttempt = video.dataset.lastFixAttempt || 0;
+            const now = Date.now();
+            if (now - lastFixAttempt > 3000) {
+              // Only try every 3 seconds
+              video.dataset.lastFixAttempt = now;
+
+              // Try to restart the video
+              if (video.srcObject) {
+                const stream = video.srcObject;
+                const tracks = stream.getTracks();
+                console.log(`Stream tracks for ${socketId}:`, tracks);
+
+                // Check if video track is enabled
+                const videoTrack = tracks.find(
+                  (track) => track.kind === "video"
+                );
+                if (videoTrack && !videoTrack.enabled) {
+                  console.log(`Enabling video track for ${socketId}`);
+                  videoTrack.enabled = true;
+                }
+
+                // Force play again
+                video
+                  .play()
+                  .catch((e) =>
+                    console.error(`Error playing video ${socketId}:`, e)
+                  );
+              }
+            }
+          }
+
+          // Check if video is paused but should be playing (only for remote videos)
+          if (
+            socketId !== "local" &&
+            video.paused &&
+            video.readyState >= 2 &&
+            !video.error
+          ) {
+            console.log(
+              `Video ${socketId} is paused but ready - attempting to play`
+            );
+            video
+              .play()
+              .catch((e) =>
+                console.error(`Error playing video ${socketId}:`, e)
+              );
+          }
+
+          // For remote videos that are black, try to refresh the stream
+          if (
+            socketId !== "local" &&
+            video.videoWidth === 0 &&
+            video.videoHeight === 0 &&
+            video.readyState >= 2
+          ) {
+            console.log(`Attempting to refresh remote video for ${socketId}`);
+
+            // Only refresh if we haven't tried recently
+            const lastRefresh = video.dataset.lastRefresh || 0;
+            const now = Date.now();
+            if (now - lastRefresh > 5000) {
+              // Only refresh every 5 seconds
+              video.dataset.lastRefresh = now;
+              refreshRemoteVideo(socketId);
+            }
+          }
+        });
+
+        console.log("=== END MONITORING ===");
+      }
+
+      // Function to refresh remote video streams
+      function refreshRemoteVideo(socketId) {
+        const peerConnection = peerConnections.get(socketId);
+        if (peerConnection) {
+          console.log(`Refreshing peer connection for ${socketId}`);
+
+          // Check connection state
+          if (peerConnection.connectionState === "connected") {
+            console.log(
+              `Peer connection ${socketId} is connected, checking for tracks`
+            );
+
+            // Get all receivers and check their tracks
+            const receivers = peerConnection.getReceivers();
+            receivers.forEach((receiver, index) => {
+              if (receiver.track && receiver.track.kind === "video") {
+                console.log(`Video receiver ${index} for ${socketId}:`, {
+                  track: receiver.track,
+                  enabled: receiver.track.enabled,
+                  readyState: receiver.track.readyState,
+                });
+
+                // If track is disabled, try to enable it
+                if (!receiver.track.enabled) {
+                  console.log(`Enabling video track for ${socketId}`);
+                  receiver.track.enabled = true;
+                }
+
+                // Check if track is live
+                if (receiver.track.readyState !== "live") {
+                  console.warn(
+                    `Video track for ${socketId} is not live: ${receiver.track.readyState}`
+                  );
+                }
+              }
+            });
+
+            // Check if we have any video tracks at all
+            const videoReceivers = receivers.filter(
+              (receiver) => receiver.track && receiver.track.kind === "video"
+            );
+
+            if (videoReceivers.length === 0) {
+              console.warn(`No video receivers found for ${socketId}`);
+              // Try to restart the connection
+              attemptReconnection(socketId);
+            }
+          } else {
+            console.log(
+              `Peer connection ${socketId} state: ${peerConnection.connectionState}`
+            );
+
+            // If connection is failed or disconnected, try reconnection
+            if (
+              peerConnection.connectionState === "failed" ||
+              peerConnection.connectionState === "disconnected"
+            ) {
+              console.log(
+                `Attempting reconnection for ${socketId} due to connection state`
+              );
+              attemptReconnection(socketId);
+            }
+          }
+        } else {
+          console.warn(`No peer connection found for ${socketId}`);
+        }
+      }
+
+      // Function to attempt reconnection for a failed peer connection
+      function attemptReconnection(socketId) {
+        console.log(`Attempting to reconnect with ${socketId}`);
+
+        // Check if we're already attempting reconnection
+        if (recoveryAttempts.get(socketId) > 3) {
+          console.log(`Max reconnection attempts reached for ${socketId}`);
+          return;
+        }
+
+        // Remove the failed connection
+        if (peerConnections.has(socketId)) {
+          const failedPc = peerConnections.get(socketId);
+          if (failedPc.signalingState !== "closed") {
+            failedPc.close();
+          }
+          peerConnections.delete(socketId);
+        }
+
+        // Create a new peer connection
+        const newPeerConnection = createPeerConnection(socketId);
+
+        // Create and send a new offer
+        setTimeout(() => {
+          try {
+            if (newPeerConnection.signalingState !== "closed") {
+              newPeerConnection
+                .createOffer()
+                .then((offer) => newPeerConnection.setLocalDescription(offer))
+                .then(() => {
+                  socket.emit("offer", {
+                    target: socketId,
+                    offer: newPeerConnection.localDescription,
+                  });
+                  console.log(`Reconnection offer sent to ${socketId}`);
+                })
+                .catch((error) => {
+                  console.error(
+                    `Error creating reconnection offer for ${socketId}:`,
+                    error
+                  );
+                  peerConnections.delete(socketId);
+                });
+            }
+          } catch (error) {
+            console.error(
+              `Error in reconnection process for ${socketId}:`,
+              error
+            );
+            peerConnections.delete(socketId);
+          }
+        }, 1000);
+      }
+
+      // Handle page unload
+      window.addEventListener("beforeunload", () => {
+        if (localStream) {
+          localStream.getTracks().forEach((track) => track.stop());
+        }
+        if (screenStream) {
+          screenStream.getTracks().forEach((track) => track.stop());
+        }
+      });
+
+      // Start the application
+      initializeMeetingApp();
+
+      // Add camera status monitoring
+      let cameraStatusInterval;
+
+      function startCameraMonitoring() {
+        // Check camera status every 10 seconds
+        cameraStatusInterval = setInterval(async () => {
+          await checkCameraStatus();
+        }, 10000);
+      }
+
+      async function checkCameraStatus() {
+        try {
+          // Check if local stream exists and has video tracks
+          if (!localStream) {
+            console.log("No local stream found, attempting to reconnect...");
+            await reconnectLocalStream();
+            return;
+          }
+
+          const videoTracks = localStream.getVideoTracks();
+          if (videoTracks.length === 0) {
+            console.log(
+              "No video tracks in local stream, attempting to reconnect..."
+            );
+            await reconnectLocalStream();
+            return;
+          }
+
+          // Check if video tracks are enabled and active
+          const activeVideoTracks = videoTracks.filter(
+            (track) => track.enabled && track.readyState === "live"
+          );
+
+          if (activeVideoTracks.length === 0) {
+            console.log("No active video tracks, attempting to reconnect...");
+            await reconnectLocalStream();
+            return;
+          }
+
+          // Check local video element
+          const localVideo = document.querySelector("#video-local video");
+          if (
+            localVideo &&
+            (localVideo.videoWidth === 0 || localVideo.videoHeight === 0)
+          ) {
+            console.log(
+              "Local video appears to be black, attempting to fix..."
+            );
+            await fixLocalVideo();
+          }
+        } catch (error) {
+          console.error("Error in camera status check:", error);
+        }
+      }
+
+      async function reconnectLocalStream() {
+        try {
+          console.log("Attempting to reconnect local stream...");
+
+          // Stop current stream
+          if (localStream) {
+            localStream.getTracks().forEach((track) => track.stop());
+          }
+
+          // Get new stream
+          await getUserMedia();
+
+          // Update peer connections
+          updatePeerConnectionsWithNewStream();
+
+          showNotification("Camera reconnected successfully", "success");
+        } catch (error) {
+          console.error("Failed to reconnect local stream:", error);
+          showNotification(
+            "Failed to reconnect camera. Please check your camera permissions.",
+            "error"
+          );
+        }
+      }
+
+      async function fixLocalVideo() {
+        try {
+          const localVideo = document.querySelector("#video-local video");
+          if (!localVideo) return;
+
+          // Try to restart the video
+          if (localVideo.srcObject) {
+            const stream = localVideo.srcObject;
+            const videoTrack = stream.getVideoTracks()[0];
+
+            if (videoTrack && !videoTrack.enabled) {
+              videoTrack.enabled = true;
+              console.log("Enabled disabled video track");
+            }
+
+            // Force play
+            await localVideo.play();
+            console.log("Forced local video to play");
+          }
+        } catch (error) {
+          console.error("Failed to fix local video:", error);
+        }
+      }
+
+      function updatePeerConnectionsWithNewStream() {
+        if (!localStream) return;
+
+        peerConnections.forEach((pc, socketId) => {
+          const senders = pc.getSenders();
+          senders.forEach((sender) => {
+            if (sender.track && localStream) {
+              const newTrack = localStream
+                .getTracks()
+                .find((track) => track.kind === sender.track.kind);
+              if (newTrack) {
+                sender.replaceTrack(newTrack);
+                console.log(
+                  `Updated ${newTrack.kind} track for peer ${socketId}`
+                );
+              }
+            }
+          });
+        });
+      }
+
+      // Start monitoring after initialization
+      setTimeout(() => {
+        startCameraMonitoring();
+      }, 5000);
+    </script>
+  </body>
+</html>
